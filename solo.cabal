@@ -29,5 +29,6 @@ executable solo
     , mwc-random
     , random
     , statistics
+    , text
     , typenums
   default-language: Haskell2010

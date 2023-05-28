@@ -31,7 +31,6 @@ import PrivacySafe
 import Primitives
 import StdLib
 import Text.Read (readMaybe)
-import Data.Maybe (mapMaybe)
 
 
 --------------------------------------------------
@@ -84,16 +83,8 @@ cdf buckets db = seqloop @iterations (\i results -> do
                                          r <- laplace @ε c
                                          return (r : results)) []
 
-readDoublesFromFile :: FilePath -> IO [Double]
-readDoublesFromFile filepath =
-  readFile filepath P.>>= \contents ->
-  let lines' = lines contents in
-  P.return $ mapMaybe readMaybe lines'
-
 exampleDB :: IO (L1List (SDouble Disc) '[ '("random_numbers.txt", NatSens 1 ) ])
-exampleDB =
-  readDoublesFromFile "random_numbers.txt" P.>>= \xs ->
-  P.return $ mkL1ListDouble xs
+exampleDB = sReadFileL "random_numbers.txt"
 
 -- ε = 100
 examplecdf :: IO (PM '[ '("random_numbers.txt", RNat 100, Zero ) ] [Double])
@@ -104,8 +95,6 @@ examplecdf =
 --------------------------------------------------
 -- Gradient descent example
 --------------------------------------------------
-
-{- gradient descent does not work as it requires AdvComp
 
 type Weights = [Double]
 type Example = [Double]
@@ -131,6 +120,8 @@ gradientDescent weights xs =
         in gaussLN @ε @δ @1 @s gradSum
   in seqloop @iterations gradStep weights
 
+{- gradient descent does not work as it requires AdvComp
+
 gradientDescentAdv :: forall ε δ iterations s.
   (TL.KnownNat iterations) =>
   Weights -> SDataset s -> PM (AdvComp iterations δ (TruncatePriv ε δ s)) Weights
@@ -141,6 +132,10 @@ gradientDescentAdv weights xs =
         in gaussLN @ε @δ @1 @s gradSum
   in advloop @iterations @δ gradStep weights
 
+-}
+
+{- This could compile, but the default reduction stack for equality checking of the natrual numbers is exceeded
+
 -- SExample of passing in specific numbers to reduce the expression down to literals
 -- Satisfies (1, 1e-5)-DP
 gdMain :: PM '[ '("dataset.dat", RNat 1, RLit 1 100000) ] Weights
@@ -150,7 +145,6 @@ gdMain =
   in gradientDescent @(RLit 1 100) @(RLit 1 10000000) @100 weights dataset
 
 -}
-
 
 --------------------------------------------------
 -- MWEM

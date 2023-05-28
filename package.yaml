@@ -10,6 +10,7 @@ dependencies:
   - mwc-random
   - statistics
   - typenums
+  - text
 
 executable:
   source-dirs: src

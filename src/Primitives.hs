@@ -32,6 +32,12 @@ import Sensitivity
 import Privacy
 import qualified Data.List as List
 
+import System.IO
+import Data.Maybe ( mapMaybe, fromMaybe, mapMaybe )
+import qualified Data.Text.IO as TIO
+import qualified Data.Text as T
+import Text.Read (readMaybe)
+
 --------------------------------------------------
 -- Axioms about sensitivities
 --------------------------------------------------
@@ -121,14 +127,46 @@ infsensD f (D_UNSAFE x) = D_UNSAFE $ f x
 -- Primitives for Lists
 --------------------------------------------------
 
-source :: forall o m. Double -> SDouble Diff '[ '(o, NatSens 1) ]
-source = D_UNSAFE
+-- Helpers for reading files
 
-sReadFileL :: forall f t. L1List (SDouble Disc) '[ '(f, NatSens 1) ]
-sReadFileL = undefined
+readDoublesFromFile :: FilePath -> IO [Double]
+readDoublesFromFile filepath =
+  readFile filepath P.>>= \contents ->
+  let lines' = lines contents in
+  P.return $ mapMaybe readMaybe lines'
+
+-- Split a string into a list of strings at delimiter
+splitOn :: Char -> String -> [String]
+splitOn delimiter input = case dropWhile (== delimiter) input of
+  "" -> []
+  s' -> w : splitOn delimiter s'' where (w, s'') = break (== delimiter) s'
+
+-- Parse a line of CSV data as a list of doubles
+parseLine :: T.Text -> [Double]
+parseLine line = Data.Maybe.fromMaybe
+  [] (mapM readMaybe (splitOn ',' (T.unpack line)))
+
+-- Parse a file contents into a list of lists of doubles
+parseCSV :: T.Text -> [[Double]]
+parseCSV input = map parseLine (T.lines input)
+
+
+sReadFileL :: FilePath -> IO (SList m (SDouble Disc) '[ '(f, NatSens 1) ])
+sReadFileL filepath =
+  readDoublesFromFile filepath P.>>= \xs ->
+  P.return $ SList_UNSAFE $ map D_UNSAFE xs
+
+sReadCsvNoHeader :: FilePath -> IO (SList m1 (SList m2 (SDouble Disc)) '[ '(f, NatSens 1) ])
+sReadCsvNoHeader filepath =
+  TIO.readFile filepath P.>>= \contents ->
+  let values = parseCSV contents in
+  P.return $ SList_UNSAFE $ map (SList_UNSAFE . map D_UNSAFE) values
 
 sReadFile :: forall f t. t '[ '(f, NatSens 1) ]
 sReadFile = undefined
+
+source :: forall o m. Double -> SDouble Diff '[ '(o, NatSens 1) ]
+source = D_UNSAFE
 
 sConstD :: forall s. Double -> SDouble Diff s
 sConstD = D_UNSAFE
@@ -156,7 +194,6 @@ sfoldr f init xs = unsafeLiftSens $ unSFoldr f (unsafeDropSens init) (unSList xs
   unSFoldr f init (x:xs) = unSFoldr f (unsafeDropSens $ f x (unsafeLiftSens init)) xs
 
 -- this could be defined using a truncation version of "fold"
--- FIXME does it work for LInfList?
 stmap :: forall n s2 a b.
   (forall s1. a s1 -> b (TruncateSens n s1))
   -> L1List a s2
@@ -183,7 +220,7 @@ clipL2 (SList_UNSAFE xs) =
     l2Sum = sqrt $ List.sum $ map (**2) xs'
   in
     map (\x -> D_UNSAFE $ x / l2Sum) xs' & SList_UNSAFE
-  
+
 szip :: SList m a s1 -> SList m b s2 -> SList m (L1Pair a b) (s1 +++ s2)
 szip xs ys = SList_UNSAFE xys & unsafeLiftSens where
   xs' = unsafeDropSens xs & unSList

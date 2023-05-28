@@ -42,6 +42,7 @@ import Data.TypeLits as TL
 type EDEnv = [(TL.Symbol, TL.Rat, TL.Rat)]
 type Zero = (TL.Pos 0) TL.:% 1
 type RNat n = (TL.Pos n) TL.:% 1
+type RLit n d = (TL.Pos n) TL.:% d
 
 type family (++++) (s1 :: EDEnv) (s2 :: EDEnv) :: EDEnv where
  '[]            ++++ s2             = s2
