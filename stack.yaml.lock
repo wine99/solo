@@ -3,7 +3,14 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: typenums-0.1.4@sha256:1e7ed4d18db4a5d485716978bb588863fa1ff40afe7098e3b304f0f2b4b3687a,1933
+    pantry-tree:
+      sha256: 389849530bf9668afed81f2c67b3faf3e4a79ca8dde9c82aa3d321607ad47020
+      size: 1306
+  original:
+    hackage: typenums-0.1.4
 snapshots:
 - completed:
     sha256: 401a0e813162ba62f04517f60c7d25e93a0f867f94a902421ebf07d1fb5a8c46
