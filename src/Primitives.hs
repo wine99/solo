@@ -200,8 +200,13 @@ stmap :: forall n s2 a b.
   -> L1List b (TruncateSens n s2)
 stmap f as = SList_UNSAFE $ map f (unSList as)
 
-clipDouble :: forall m senv. SDouble Disc senv -> SDouble Diff senv
-clipDouble = undefined
+clipDouble :: forall b m senv. (KnownNat b) => SDouble Disc senv -> SDouble Diff (ScaleSens senv b)
+clipDouble x =
+  let
+    bound = fromIntegral $ natVal (Proxy :: Proxy b)
+    x' = unSDouble x
+  in
+    D_UNSAFE $ if x' > bound then bound else if x' < -bound then -bound else x'
 
 clipL1 :: forall m senv.
   L1List (SDouble m) senv -> L1List (SDouble Diff) (TruncateSens 1 senv)

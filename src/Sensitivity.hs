@@ -61,6 +61,12 @@ type LInfList = SList LInf                                 -- $τ␣‹alist›$
   Where can we use this? When randomly draw an element from a list?
 
   FIXME In primitives.hs and StdLib.hs, why do some functions work only on L1List?
+
+
+  Why do we need TruncateSens?
+  If we want to implement parallel composition, if we don't have TruncateSens,
+  does it then mean as long as the sensitivty of a list is 1, we can be sure that
+  no two entries from the dataset have made contributions to a same element in the list?
 -}
 
 type family IsLT (o :: Ordering) :: Bool where
