@@ -23,12 +23,14 @@ module StdLib where
 
 import Prelude hiding (return,(>>=), sum)
 import qualified Prelude as P
-import qualified GHC.TypeLits as TL
+import Data.TypeLits as TL
 import Data.Proxy
+import Data.Function
 
 import SensitivitySafe
 import PrivacySafe
 import Primitives
+import Unsafe.Coerce (unsafeCoerce)
 
 
 summationFunction :: L1List (SDouble Disc) senv -> SDouble Diff (TruncateSens 1 senv)
@@ -40,8 +42,11 @@ sumFn x y = cong (eq_sym scale_unit) x <+> cong (eq_sym scale_unit) y
 sum :: forall s. L1List (SDouble Diff) s -> SDouble Diff s
 sum xs = cong scale_unit $ sfoldr @1 @1 sumFn (sConstD @'[] 0) xs
 
-clipList :: L1List (SDouble Disc) s -> L1List (SDouble Diff) s
-clipList xs = cong scale_unit $ smap @1 (cong (eq_sym scale_unit) . clipDouble) xs
+-- clipList :: L1List (SDouble Disc) s -> L1List (SDouble Diff) s
+-- clipList xs = cong scale_unit $ smap @1 (cong (eq_sym scale_unit) . clipDouble) xs
+
+clipList :: forall b s. (KnownNat b) => L1List (SDouble Disc) s -> L1List (SDouble Diff) (ScaleSens s b)
+clipList xs = unSList xs & map (clipDouble @b) & sConstL
 
 smap :: forall fn_sens a b s2 m.
   (forall s1. a s1 -> b (ScaleSens s1 fn_sens))

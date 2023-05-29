@@ -23,14 +23,17 @@ module Main where
 
 import Prelude hiding (return,(>>=), sum)
 import qualified Prelude as P
-import qualified GHC.TypeLits as TL
+import Data.TypeLits as TL
 import Data.Proxy
 
 import SensitivitySafe
 import PrivacySafe
 import Primitives
 import StdLib
-import Rats
+import Text.Read (readMaybe)
+
+import qualified Data.Map.Strict as Map
+import qualified GHC.List as List
 
 
 --------------------------------------------------
@@ -50,6 +53,9 @@ addNoiseTwice x = do
   a <- laplace @(RNat 2) x
   b <- laplace @(RNat 3) x
   return $ a + b
+
+egAddNoiseTwice :: Double -> PM '[ '("input_db", RNat 5, Zero) ] Double
+egAddNoiseTwice x = addNoiseTwice (sConstD @'[ '( "input_db", NatSens 1 ) ] x)
 
 -- FAIL version from the paper:
 --
@@ -73,19 +79,43 @@ sumList xs = cong scale_unit $ sfoldr @1 @1 scalePlus (sConstD @'[] 0) xs
 -- CDF Example
 --------------------------------------------------
 
-cdf :: forall ε iterations s. (TL.KnownNat (MaxSens s), TL.KnownNat iterations) =>
+cdf :: forall ε iterations s. (TL.KnownNat (MaxSens s), TL.KnownNat iterations, TL.KnownRat ε) =>
   [Double] -> L1List (SDouble Disc) s -> PM (ScalePriv (TruncatePriv ε Zero s) iterations) [Double]
 cdf buckets db = seqloop @iterations (\i results -> do
                                          let c = count $ sfilter ((<) $ buckets !! i) db
                                          r <- laplace @ε c
                                          return (r : results)) []
 
-exampleDB :: L1List (SDouble Disc) '[ '( "input_db", NatSens 1 ) ]
-exampleDB = undefined
+exampleDB :: IO (L1List (SDouble Disc) '[ '("random_numbers.txt", NatSens 1 ) ])
+exampleDB = sReadFileL "random_numbers.txt"
 
--- -- ε = 100
-examplecdf :: PM '[ '( "input_db", RNat 100, Zero ) ] [Double]
-examplecdf = cdf @(RNat 1) @100 [0..100] exampleDB
+-- ε = 100
+examplecdf :: IO (PM '[ '("random_numbers.txt", RNat 100, Zero ) ] [Double])
+examplecdf =
+  exampleDB P.>>= \exampleDB ->
+  P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
+
+
+assignBin :: SDouble m s -> Integer
+assignBin sdouble = truncate $ unSDouble sdouble
+
+parted =
+  exampleDB P.>>= \exampleDB ->
+  P.return $ part assignBin exampleDB
+
+noisyCount k xs = do
+  let c = count xs
+  laplace @(RNat 1) c
+
+-- Here Haskell can infer the type of `histogramPM` is
+--  PM '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map Integer Double)
+-- So parallel cdf satisfies 1,0-differential privacy
+parallelCdf =
+  parted P.>>= \parted ->
+  let histogramPM = parallel noisyCount parted in
+  unPM histogramPM P.>>= \histogram ->
+  let kvs = Map.toAscList histogram in
+  P.return [List.sum (map snd (take i kvs)) | i <- [1 .. length kvs]]
 
 --------------------------------------------------
 -- Gradient descent example
@@ -115,6 +145,8 @@ gradientDescent weights xs =
         in gaussLN @ε @δ @1 @s gradSum
   in seqloop @iterations gradStep weights
 
+{- gradient descent does not work as it requires AdvComp
+
 gradientDescentAdv :: forall ε δ iterations s.
   (TL.KnownNat iterations) =>
   Weights -> SDataset s -> PM (AdvComp iterations δ (TruncatePriv ε δ s)) Weights
@@ -125,6 +157,10 @@ gradientDescentAdv weights xs =
         in gaussLN @ε @δ @1 @s gradSum
   in advloop @iterations @δ gradStep weights
 
+-}
+
+{- This could compile, but the default reduction stack for equality checking of the natrual numbers is exceeded
+
 -- SExample of passing in specific numbers to reduce the expression down to literals
 -- Satisfies (1, 1e-5)-DP
 gdMain :: PM '[ '("dataset.dat", RNat 1, RLit 1 100000) ] Weights
@@ -132,6 +168,8 @@ gdMain =
   let weights = take 10 $ repeat 0
       dataset = sReadFile @"dataset.dat"
   in gradientDescent @(RLit 1 100) @(RLit 1 10000000) @100 weights dataset
+
+-}
 
 --------------------------------------------------
 -- MWEM
@@ -150,7 +188,7 @@ scoreFn syn_rep q db =
   in sabs $ sConstD @'[] syn_answer <-> true_answer
 
 mwem :: forall ε iterations s.
-  (TL.KnownNat (MaxSens s), TL.KnownNat iterations) =>
+  (TL.KnownNat (MaxSens s), TL.KnownNat iterations, TL.KnownRat ε) =>
   [Double] -> [RangeQuery] -> L1List (SDouble Disc) s
   -> PM (ScalePriv ((TruncatePriv ε Zero s) ++++ (TruncatePriv ε Zero s)) iterations) [Double]
 mwem syn_rep qs db =
@@ -163,5 +201,15 @@ mwem syn_rep qs db =
 multiplicativeWeights :: [Double] -> (Double, Double) -> Double -> [Double]
 multiplicativeWeights = undefined
 
-main :: IO ()
-main = P.return ()
+
+{-
+
+main = 
+  examplecdf P.>>= \cdfResult ->
+  unPM cdfResult P.>>= \cdfResult ->
+  print cdfResult
+
+ -}
+
+
+main = parallelCdf P.>>= \cdfResult -> print cdfResult

@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -15,11 +15,7 @@ executable solo
   other-modules:
       Primitives
       Privacy
-      PrivacyEps
-      PrivacyEpsSafe
       PrivacySafe
-      Rats
-      Reals
       Sensitivity
       SensitivitySafe
       StdLib
@@ -30,4 +26,10 @@ executable solo
       src
   build-depends:
       base
+    , containers
+    , mwc-random
+    , random
+    , statistics
+    , text
+    , typenums
   default-language: Haskell2010
