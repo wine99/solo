@@ -33,7 +33,7 @@ import StdLib
 import Text.Read (readMaybe)
 
 import qualified Data.Map.Strict as Map
-import Control.Monad (forM_)
+import qualified GHC.List as List
 
 
 --------------------------------------------------
@@ -95,6 +95,7 @@ examplecdf =
   exampleDB P.>>= \exampleDB ->
   P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
 
+
 assignBin :: SDouble m s -> Integer
 assignBin sdouble = truncate $ unSDouble sdouble
 
@@ -106,9 +107,15 @@ noisyCount k xs = do
   let c = count xs
   laplace @(RNat 1) c
 
+-- Here Haskell can infer the type of `histogramPM` is
+--  PM '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map Integer Double)
+-- So parallel cdf satisfies 1,0-differential privacy
 parallelCdf =
   parted P.>>= \parted ->
-  P.return $ parallel noisyCount parted
+  let histogramPM = parallel noisyCount parted in
+  unPM histogramPM P.>>= \histogram ->
+  let kvs = Map.toAscList histogram in
+  P.return [List.sum (map snd (take i kvs)) | i <- [1 .. length kvs]]
 
 --------------------------------------------------
 -- Gradient descent example
@@ -205,14 +212,4 @@ main =
  -}
 
 
-printPms :: Show a => [PM s a] -> IO ()
-printPms [] = P.return ()
-printPms (pm:pms) = do
-  unPM pm P.>>= \x ->
-    print x
-  printPms pms
-
-main = 
-  parallelCdf P.>>= \cdfResult ->
-  let results = Map.elems cdfResult
-  in printPms results
+main = parallelCdf P.>>= \cdfResult -> print cdfResult

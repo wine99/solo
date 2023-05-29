@@ -278,14 +278,14 @@ seqloop f init =
     unsafeCoerce $ loop 0 (P.return init)
 
 -- `f` takes a key and a SList associated with that key
--- parallel :: Partition k cm t s -> (k -> SList cm t s -> PM p a) -> PM p (Map.Map k a)
-parallel :: (k -> SList cm t s -> PM p a) -> Partition k cm t s -> Map.Map k (PM p a)
+parallel :: (k -> SList cm t s -> PM p a) -> Partition k cm t s -> PM p (Map.Map k a)
 parallel f partition =
   let
     pms = Map.mapWithKey f $ unPartition partition
     pms' = Map.mapWithKey (\k pm -> unPM pm P.>>= \x -> P.return x) pms
+    pms'' = sequence pms'
   in
-    pms
+    PM_UNSAFE pms''
 
 -- advloop :: forall k delta_prime p a.
 --   (TL.KnownNat k) => (Int -> a -> PM p a) -> a -> PM (AdvComp k delta_prime p) a
