@@ -24,6 +24,7 @@ module Sensitivity where
 import Prelude hiding (return,(>>=), sum)
 import qualified Prelude as P
 import Data.TypeLits as TL
+import qualified Data.Map.Strict as Map
 import Data.Proxy
 import Unsafe.Coerce
 
@@ -68,6 +69,8 @@ type LInfList = SList LInf                                 -- $τ␣‹alist›$
   does it then mean as long as the sensitivty of a list is 1, we can be sure that
   no two entries from the dataset have made contributions to a same element in the list?
 -}
+
+newtype Partition k cm t s = Partition_UNSAFE { unPartition :: Map.Map k (SList cm t s) }
 
 type family IsLT (o :: Ordering) :: Bool where
   IsLT 'LT = 'True

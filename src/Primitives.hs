@@ -25,6 +25,7 @@ import qualified Prelude as P
 import Data.TypeLits as TL
 import Data.Proxy
 import Data.Function
+import qualified Data.Map.Strict as Map
 
 import Unsafe.Coerce
 
@@ -245,6 +246,18 @@ sfst p = fst $ unSPair p
 ssnd :: LInfPair t1 t2 s -> t2 s
 ssnd p = snd $ unSPair p
 
+--------------------------------------------------
+-- Primitives for Partition
+--------------------------------------------------
+
+part :: forall k cm t s. (Ord k, (MaxSens s) TL.== 1) => (t s -> k) -> SList cm t s -> Partition k cm t s
+part f xs =
+  let
+    insertF newValue oldValue = oldValue ++ newValue
+    emptyMap = Map.empty :: Map.Map k [t s]
+    mapList = foldl (\m x -> let k = f x in Map.insertWith insertF k [x] m) emptyMap (unSList xs)
+  in
+    Partition_UNSAFE $ Map.map SList_UNSAFE mapList
 
 --------------------------------------------------
 -- Looping combinators
@@ -263,6 +276,16 @@ seqloop f init =
         loop (i+1) (unPM $ f i accu')
   in
     unsafeCoerce $ loop 0 (P.return init)
+
+-- `f` takes a key and a SList associated with that key
+-- parallel :: Partition k cm t s -> (k -> SList cm t s -> PM p a) -> PM p (Map.Map k a)
+parallel :: (k -> SList cm t s -> PM p a) -> Partition k cm t s -> Map.Map k (PM p a)
+parallel f partition =
+  let
+    pms = Map.mapWithKey f $ unPartition partition
+    pms' = Map.mapWithKey (\k pm -> unPM pm P.>>= \x -> P.return x) pms
+  in
+    pms
 
 -- advloop :: forall k delta_prime p a.
 --   (TL.KnownNat k) => (Int -> a -> PM p a) -> a -> PM (AdvComp k delta_prime p) a

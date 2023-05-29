@@ -32,6 +32,9 @@ import Primitives
 import StdLib
 import Text.Read (readMaybe)
 
+import qualified Data.Map.Strict as Map
+import Control.Monad (forM_)
+
 
 --------------------------------------------------
 -- Simple examples
@@ -91,6 +94,21 @@ examplecdf :: IO (PM '[ '("random_numbers.txt", RNat 100, Zero ) ] [Double])
 examplecdf =
   exampleDB P.>>= \exampleDB ->
   P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
+
+assignBin :: SDouble m s -> Integer
+assignBin sdouble = truncate $ unSDouble sdouble
+
+parted =
+  exampleDB P.>>= \exampleDB ->
+  P.return $ part assignBin exampleDB
+
+noisyCount k xs = do
+  let c = count xs
+  laplace @(RNat 1) c
+
+parallelCdf =
+  parted P.>>= \parted ->
+  P.return $ parallel noisyCount parted
 
 --------------------------------------------------
 -- Gradient descent example
@@ -177,7 +195,24 @@ multiplicativeWeights :: [Double] -> (Double, Double) -> Double -> [Double]
 multiplicativeWeights = undefined
 
 
+{-
+
 main = 
   examplecdf P.>>= \cdfResult ->
   unPM cdfResult P.>>= \cdfResult ->
   print cdfResult
+
+ -}
+
+
+printPms :: Show a => [PM s a] -> IO ()
+printPms [] = P.return ()
+printPms (pm:pms) = do
+  unPM pm P.>>= \x ->
+    print x
+  printPms pms
+
+main = 
+  parallelCdf P.>>= \cdfResult ->
+  let results = Map.elems cdfResult
+  in printPms results

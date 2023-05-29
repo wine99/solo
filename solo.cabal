@@ -26,6 +26,7 @@ executable solo
       src
   build-depends:
       base
+    , containers
     , mwc-random
     , random
     , statistics
