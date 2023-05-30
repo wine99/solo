@@ -215,14 +215,13 @@ multiplicativeWeights = undefined
 
 samples :: IO (SList m (SDouble m1) '[ '("", NatSens 1 ) ])
 samples = 
-      let createRandomDouble = 
+      let sampleLaplace = 
             createSystemRandom P.>>= \gen ->
             genContVar (Lap.laplace 5 10) gen P.>>= \r ->
-            P.return (r)
-          unsens = sequence [createRandomDouble | _ <- [1..1000]]
+            P.return r
+          randomSamples = sequence [sampleLaplace | _ <- [1..1000]]
       in
-          unsens P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
-
+          randomSamples P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
 
 options :: [Integer]
 options = [-10 .. 10]
@@ -231,9 +230,7 @@ filterCount :: Integer -> L1List (SDouble m) s -> SDouble 'Diff s
 filterCount option dataset = count $ sfilter (\x -> (round x) == option) dataset
 
 
-noisyMax = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
-
-
+mostFrequent = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
 
 
 {-
@@ -246,5 +243,5 @@ main =
  -}
 
 
-main = noisyMax P.>>= \pm -> unPM pm P.>>= print
+main = mostFrequent P.>>= \pm -> unPM pm P.>>= print
 -- main = parallelCdf P.>>= \cdfResult -> print cdfResult
