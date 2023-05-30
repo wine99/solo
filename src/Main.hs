@@ -24,12 +24,21 @@ import qualified Prelude as P   -- 别名为 P
 import Data.TypeLits as TL
 import Data.Proxy
 
+import System.Random
+import qualified System.Random.MWC as MWC
+import qualified Statistics.Distribution.Laplace as Lap
+import Statistics.Distribution (ContGen(genContVar))
+import System.Random.MWC (createSystemRandom)
+
 import SensitivitySafe
 import PrivacySafe
 import Primitives
 import StdLib
 import Text.Read (readMaybe)
-import Data.Maybe (mapMaybe)
+
+import qualified Data.Map.Strict as Map
+import qualified GHC.List as List
+import Sensitivity (SList(SList_UNSAFE), SDouble (D_UNSAFE))
 
 
 --------------------------------------------------
@@ -82,27 +91,39 @@ cdf buckets db = seqloop @iterations (\i results -> do
                                          r <- laplace @ε c
                                          return (r : results)) []
 
-readDoublesFromFile :: FilePath -> IO [Double]
-readDoublesFromFile filepath =
-  readFile filepath P.>>= \contents ->
-  let lines' = lines contents in
-  P.return $ mapMaybe readMaybe lines'
-
 exampleDB :: IO (L1List (SDouble Disc) '[ '("random_numbers.txt", NatSens 1 ) ])
-exampleDB =
-  readDoublesFromFile "random_numbers.txt" P.>>= \xs ->
-  P.return $ mkL1ListDouble xs
+exampleDB = sReadFileL "random_numbers.txt"
 
 -- ε = 100
 examplecdf :: IO (PM '[ '("random_numbers.txt", RNat 100, Zero ) ] [Double])
 examplecdf =
   exampleDB P.>>= \exampleDB -> P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
 
+
+assignBin :: SDouble m s -> Integer
+assignBin sdouble = truncate $ unSDouble sdouble
+
+parted =
+  exampleDB P.>>= \exampleDB ->
+  P.return $ part assignBin exampleDB
+
+noisyCount k xs = do
+  let c = count xs
+  laplace @(RNat 1) c
+
+-- Here Haskell can infer the type of `histogramPM` is
+--  PM '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map Integer Double)
+-- So parallel cdf satisfies 1,0-differential privacy
+parallelCdf =
+  parted P.>>= \parted ->
+  let histogramPM = parallel noisyCount parted in
+  unPM histogramPM P.>>= \histogram ->
+  let kvs = Map.toAscList histogram in
+  P.return [List.sum (map snd (take i kvs)) | i <- [1 .. length kvs]]
+
 --------------------------------------------------
 -- Gradient descent example
 --------------------------------------------------
-
-{- gradient descent does not work as it requires AdvComp
 
 type Weights = [Double]
 type Example = [Double]
@@ -128,6 +149,8 @@ gradientDescent weights xs =
         in gaussLN @ε @δ @1 @s gradSum
   in seqloop @iterations gradStep weights
 
+{- gradient descent does not work as it requires AdvComp
+
 gradientDescentAdv :: forall ε δ iterations s.
   (TL.KnownNat iterations) =>
   Weights -> SDataset s -> PM (AdvComp iterations δ (TruncatePriv ε δ s)) Weights
@@ -138,6 +161,10 @@ gradientDescentAdv weights xs =
         in gaussLN @ε @δ @1 @s gradSum
   in advloop @iterations @δ gradStep weights
 
+-}
+
+{- This could compile, but the default reduction stack for equality checking of the natrual numbers is exceeded
+
 -- SExample of passing in specific numbers to reduce the expression down to literals
 -- Satisfies (1, 1e-5)-DP
 gdMain :: PM '[ '("dataset.dat", RNat 1, RLit 1 100000) ] Weights
@@ -147,7 +174,6 @@ gdMain =
   in gradientDescent @(RLit 1 100) @(RLit 1 10000000) @100 weights dataset
 
 -}
-
 
 --------------------------------------------------
 -- MWEM
@@ -180,7 +206,42 @@ multiplicativeWeights :: [Double] -> (Double, Double) -> Double -> [Double]
 multiplicativeWeights = undefined
 
 
+--------------------------------------------------
+-- Exponential Mechanism on Laplace Samples
+--------------------------------------------------
+
+samples :: IO (SList m (SDouble m1) '[ '("", NatSens 1 ) ])
+samples =
+      let createRandomDouble =
+            createSystemRandom P.>>= \gen ->
+            genContVar (Lap.laplace 5 10) gen P.>>= \r ->
+            P.return (r)
+          unsens = sequence [createRandomDouble | _ <- [1..1000]]
+      in
+          unsens P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
+
+
+options :: [Integer]
+options = [-10 .. 10]
+
+filterCount :: Integer -> L1List (SDouble m) s -> SDouble 'Diff s
+filterCount option dataset = count $ sfilter (\x -> (round x) == option) dataset
+
+
+noisyMax = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
+
+
+
+
+{-
+
 main =
   examplecdf P.>>= \cdfResult ->
   unPM cdfResult P.>>= \cdfResult ->
   print cdfResult
+
+ -}
+
+
+main = noisyMax P.>>= \pm -> unPM pm P.>>= print
+-- main = parallelCdf P.>>= \cdfResult -> print cdfResult

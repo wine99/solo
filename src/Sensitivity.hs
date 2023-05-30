@@ -24,6 +24,7 @@ module Sensitivity where
 import Prelude hiding (return,(>>=), sum)
 import qualified Prelude as P
 import Data.TypeLits as TL
+import qualified Data.Map.Strict as Map
 import Data.Proxy
 import Unsafe.Coerce
 
@@ -49,6 +50,32 @@ newtype SList (m :: CMetric) (f :: SEnv -> *) (s :: SEnv) = SList_UNSAFE { unSLi
 type L1List   = SList L1                                   -- $τ␣‹list›$ in Fuzz
 type L2List   = SList L2                                   -- Not in Fuzz
 type LInfList = SList LInf                                 -- $τ␣‹alist›$ in Fuzz
+
+{-
+  What do L1List L2List LInfList mean?
+
+  L1List means the sensitivity of the list is the sum of the sensitivities of its elements.
+  If we are going to add Laplace noise to a `L1List t [(o, NatSens 1)]` with length k
+  to obtain ε-differential privacy, we need to add Laplace noise with scale=k/ε,
+  i.e. there are k elements and each elements have sensitivity 1 wrt `o`, then the sensitivity of the list is k.
+
+  L2List means the sensitivity of the list is the square root of the sum of the squares of the sensitivities of its elements.
+  If we are going to add Gaussian noise to a `L2List t [(o, NatSens 1)]` with length k
+  to obtain ε,δ-differential privacy, we need to add Gaussian noise with σ²=2s²ln(1.25/δ)/ε².
+
+  LInfList means the sensitivity of the list is the maximum of the sensitivities of its elements.
+  Where can we use this? When randomly draw an element from a list?
+
+  FIXME In primitives.hs and StdLib.hs, why do some functions work only on L1List?
+
+
+  Why do we need TruncateSens?
+  If we want to implement parallel composition, if we don't have TruncateSens,
+  does it then mean as long as the sensitivty of a list is 1, we can be sure that
+  no two entries from the dataset have made contributions to a same element in the list?
+-}
+
+newtype Partition k cm t s = Partition_UNSAFE { unPartition :: Map.Map k (SList cm t s) }
 
 type family IsLT (o :: Ordering) :: Bool where
   IsLT 'LT = 'True

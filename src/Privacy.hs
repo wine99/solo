@@ -24,6 +24,7 @@ module Privacy where
 import Prelude hiding (return,(>>=), sum)
 import qualified Prelude as P
 import Data.Proxy
+import Control.Monad.Random.Class
 
 import Sensitivity
 
@@ -42,6 +43,7 @@ import Data.TypeLits as TL
 type EDEnv = [(TL.Symbol, TL.Rat, TL.Rat)]
 type Zero = (TL.Pos 0) TL.:% 1
 type RNat n = (TL.Pos n) TL.:% 1
+type RLit n d = (TL.Pos n) TL.:% d
 
 type family (++++) (s1 :: EDEnv) (s2 :: EDEnv) :: EDEnv where
  '[]            ++++ s2             = s2
@@ -123,9 +125,23 @@ gaussLN :: forall eps delta n s. (TL.KnownNat n)
   -> PM (TruncatePriv eps delta s) [Double]
 gaussLN x = undefined
 
-expMech :: forall eps s1 t1 t2.
+expMech :: forall eps s1 t1 t2. (TL.KnownNat (MaxSens s1), TL.KnownRat eps) => 
   (forall s. t1 -> t2 s -> SDouble Diff s)
   -> [t1]
   -> t2 s1
   -> PM (TruncatePriv eps Zero s1) t1
-expMech rs x f = undefined
+expMech rs x f = 
+  let scores = [rs e f | e <- x]
+      
+      maxSens :: Double
+      maxSens = fromInteger $ natVal (Proxy :: Proxy (MaxSens s1))
+
+      epsilon :: Double
+      epsilon = fromRational $ ratVal (Proxy :: Proxy eps)
+
+      weights = [ exp (epsilon * (unSDouble s) / (2 * maxSens)) | s <- scores]
+
+      weights_rationals = [toRational w | w <- weights]
+      pairs = zip x weights_rationals
+  in
+    PM_UNSAFE $ fromList pairs

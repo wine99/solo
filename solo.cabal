@@ -25,9 +25,12 @@ executable solo
   hs-source-dirs:
       src
   build-depends:
-      base
+      MonadRandom
+    , base
+    , containers
     , mwc-random
     , random
     , statistics
+    , text
     , typenums
   default-language: Haskell2010

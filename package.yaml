@@ -10,6 +10,9 @@ dependencies:
   - mwc-random
   - statistics
   - typenums
+  - text
+  - containers
+  - MonadRandom
 
 executable:
   source-dirs: src
