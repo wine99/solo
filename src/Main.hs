@@ -26,6 +26,12 @@ import qualified Prelude as P
 import Data.TypeLits as TL
 import Data.Proxy
 
+import System.Random
+import qualified System.Random.MWC as MWC
+import qualified Statistics.Distribution.Laplace as Lap
+import Statistics.Distribution (ContGen(genContVar))
+import System.Random.MWC (createSystemRandom)
+
 import SensitivitySafe
 import PrivacySafe
 import Primitives
@@ -34,6 +40,7 @@ import Text.Read (readMaybe)
 
 import qualified Data.Map.Strict as Map
 import qualified GHC.List as List
+import Sensitivity (SList(SList_UNSAFE), SDouble (D_UNSAFE))
 
 
 --------------------------------------------------
@@ -202,6 +209,33 @@ multiplicativeWeights :: [Double] -> (Double, Double) -> Double -> [Double]
 multiplicativeWeights = undefined
 
 
+--------------------------------------------------
+-- Exponential Mechanism on Laplace Samples
+--------------------------------------------------
+
+samples :: IO (SList m (SDouble m1) '[ '("", NatSens 1 ) ])
+samples = 
+      let createRandomDouble = 
+            createSystemRandom P.>>= \gen ->
+            genContVar (Lap.laplace 5 10) gen P.>>= \r ->
+            P.return (r)
+          unsens = sequence [createRandomDouble | _ <- [1..1000]]
+      in
+          unsens P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
+
+
+options :: [Integer]
+options = [-10 .. 10]
+
+filterCount :: Integer -> L1List (SDouble m) s -> SDouble 'Diff s
+filterCount option dataset = count $ sfilter (\x -> (round x) == option) dataset
+
+
+noisyMax = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
+
+
+
+
 {-
 
 main = 
@@ -212,4 +246,5 @@ main =
  -}
 
 
-main = parallelCdf P.>>= \cdfResult -> print cdfResult
+main = noisyMax P.>>= \pm -> unPM pm P.>>= print
+-- main = parallelCdf P.>>= \cdfResult -> print cdfResult

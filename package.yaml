@@ -12,6 +12,7 @@ dependencies:
   - typenums
   - text
   - containers
+  - MonadRandom
 
 executable:
   source-dirs: src
