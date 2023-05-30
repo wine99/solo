@@ -167,6 +167,7 @@ clipDouble :: forall m senv. SDouble Disc senv -> SDouble Diff senv
 clipDouble = undefined
 
 clipL1 :: forall m senv.
+ -- FIXME: lose sensitivity to 1, only make sense on count!!!
   L1List (SDouble m) senv -> L1List (SDouble Diff) (TruncateSens 1 senv)
 clipL1 (SList_UNSAFE xs) =
   let
@@ -175,6 +176,7 @@ clipL1 (SList_UNSAFE xs) =
   in
     map (\x -> D_UNSAFE $ x / sum) xs' & SList_UNSAFE
 
+-- FIXME: has some problems
 clipL2 :: forall m senv.
   L2List (SDouble m) senv -> L2List (SDouble Diff) (TruncateSens 1 senv)
 clipL2 (SList_UNSAFE xs) =
@@ -183,7 +185,7 @@ clipL2 (SList_UNSAFE xs) =
     l2Sum = sqrt $ List.sum $ map (**2) xs'
   in
     map (\x -> D_UNSAFE $ x / l2Sum) xs' & SList_UNSAFE
-  
+
 szip :: SList m a s1 -> SList m b s2 -> SList m (L1Pair a b) (s1 +++ s2)
 szip xs ys = SList_UNSAFE xys & unsafeLiftSens where
   xs' = unsafeDropSens xs & unSList

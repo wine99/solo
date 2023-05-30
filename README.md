@@ -52,3 +52,12 @@ To verify the claims of the paper, we suggest that reviewers:
 We have tried to make the implementation minimal and understandable,
 while ensuring that each example in the paper is described in the
 code.
+
+# Changes
+1. Main, more examples
+2. Privacy, replace xxx to Data.TL
+3. Primitives, operations, i.e.,sfilter_fn
+    * unsafeDropSens , 
+4. Sensitivity, unsafeDropSens, 
+
+@ hidden parameter

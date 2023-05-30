@@ -18,11 +18,9 @@
    ,RebindableSyntax
    ,EmptyCase
    #-}
-
 module Main where
-
-import Prelude hiding (return,(>>=), sum)
-import qualified Prelude as P
+import Prelude hiding (return,(>>=), sum) -- 默认导入的模块
+import qualified Prelude as P   -- 别名为 P
 import Data.TypeLits as TL
 import Data.Proxy
 
@@ -48,12 +46,12 @@ simplePrivacyFunction x = laplace @(RNat 2) (dbl x)
 addNoiseTwice :: TL.KnownNat (MaxSens s) => SDouble Diff s
   -> PM (TruncatePriv (RNat 2) Zero s ++++ TruncatePriv (RNat 3) Zero s) Double
 addNoiseTwice x = do
-  a <- laplace @(RNat 2) x
+  a <- laplace @(RNat 2) x -- ϵ
   b <- laplace @(RNat 3) x
   return $ a + b
 
-egAddNoiseTwice :: Double -> PM '[ '("input_db", RNat 5, Zero) ] Double
-egAddNoiseTwice x = addNoiseTwice (sConstD @'[ '( "input_db", NatSens 1 ) ] x)
+egAddNoiseTwice :: Double -> PM '[ '("input_db", RNat 5, Zero) ] Double  -- FIXME: 6!=5??
+egAddNoiseTwice x = addNoiseTwice (sConstD @'[ '( "input_db", NatSens 10000 ) ] x)
 
 -- FAIL version from the paper:
 --
@@ -98,8 +96,7 @@ exampleDB =
 -- ε = 100
 examplecdf :: IO (PM '[ '("random_numbers.txt", RNat 100, Zero ) ] [Double])
 examplecdf =
-  exampleDB P.>>= \exampleDB ->
-  P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
+  exampleDB P.>>= \exampleDB -> P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
 
 --------------------------------------------------
 -- Gradient descent example
@@ -174,7 +171,7 @@ mwem :: forall ε iterations s.
   -> PM (ScalePriv ((TruncatePriv ε Zero s) ++++ (TruncatePriv ε Zero s)) iterations) [Double]
 mwem syn_rep qs db =
   let mwemStep _ syn_rep = do
-        selected_q <- expMech @ε (scoreFn syn_rep) qs db
+        selected_q <- expMech @ε (scoreFn syn_rep) qs db   -- why
         measurement <- laplace @ε (evaluateDB selected_q db)
         return $ multiplicativeWeights syn_rep selected_q measurement
   in seqloop @iterations mwemStep syn_rep
@@ -183,7 +180,7 @@ multiplicativeWeights :: [Double] -> (Double, Double) -> Double -> [Double]
 multiplicativeWeights = undefined
 
 
-main = 
+main =
   examplecdf P.>>= \cdfResult ->
   unPM cdfResult P.>>= \cdfResult ->
   print cdfResult

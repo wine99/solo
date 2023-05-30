@@ -31,8 +31,13 @@ type Source = TL.Symbol                               -- sensitive data sources
 data Sensitivity = InfSens | NatSens TL.Nat           -- sensitivity values
 type SEnv = [(Source, Sensitivity)]                   -- sensitivity environments
 
-data NMetric = Diff | Disc                            -- distance metrics for numeric types
-newtype SDouble  (m :: NMetric) (s :: SEnv) = D_UNSAFE { unSDouble :: Double }
+data NMetric = Diff | Disc                            -- distance metrics for numeric types Diff = |𝑣1 − 𝑣2|, Disc = 1
+
+--
+-- interface SDouble<M extends NMetric, S extends SEnv> {
+  -- unSDouble: number;
+-- }
+newtype SDouble (m :: NMetric) (s :: SEnv) = D_UNSAFE { unSDouble :: Double }
 
 data CMetric = L1 | L2 | LInf                         -- metrics for compound types
 newtype SPair (m :: CMetric) (f1 :: SEnv -> *) (f2 :: SEnv -> *) (s :: SEnv) = P_UNSAFE { unSPair :: (f1 s, f2 s) }
@@ -53,6 +58,7 @@ type family IsEQ (o :: Ordering) :: Bool where
   IsEQ 'EQ = 'True
   IsEQ _ = 'False
 
+-- b?x:y operations
 type family Cond (b :: Bool) (x :: a) (y :: a) where
   Cond 'True x _ = x
   Cond 'False _ y = y
