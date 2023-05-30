@@ -219,9 +219,9 @@ samples =
             createSystemRandom P.>>= \gen ->
             genContVar (Lap.laplace 5 10) gen P.>>= \r ->
             P.return r
-          randomSamples = sequence [sampleLaplace | _ <- [1..1000]]
+          laplaceSamples = sequence [sampleLaplace | _ <- [1..1000]]
       in
-          randomSamples P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
+          laplaceSamples P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
 
 options :: [Integer]
 options = [-10 .. 10]
