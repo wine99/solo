@@ -129,9 +129,9 @@ expMech :: forall eps s1 t1 t2. (TL.KnownNat (MaxSens s1), TL.KnownRat eps) =>
   -> [t1]
   -> t2 s1
   -> PM (TruncatePriv eps Zero s1) t1
-expMech rs x f = 
-  let scores = [rs e f | e <- x]
-      
+expMech scoreF options d = 
+  let scores = [scoreF option d | option <- options]
+
       maxSens :: Double
       maxSens = fromInteger $ natVal (Proxy :: Proxy (MaxSens s1))
 
@@ -141,6 +141,6 @@ expMech rs x f =
       weights = [ exp (epsilon * (unSDouble s) / (2 * maxSens)) | s <- scores]
 
       weights_rationals = [toRational w | w <- weights]
-      pairs = zip x weights_rationals
+      pairs = zip options weights_rationals
   in
     PM_UNSAFE $ fromList pairs
