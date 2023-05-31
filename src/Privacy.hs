@@ -15,7 +15,6 @@
    ,TypeSynonymInstances
    ,TypeFamilyDependencies
    ,UndecidableInstances
-   ,RebindableSyntax
    ,EmptyCase
    #-}
 
@@ -100,9 +99,9 @@ laplace x =
       epsilon :: Double
       epsilon = fromRational $ ratVal (Proxy :: Proxy eps)
   in
-    PM_UNSAFE $
-      createSystemRandom P.>>= \gen ->
-      genContVar (Lap.laplace 0 (maxSens / epsilon)) gen P.>>= \r ->
+    PM_UNSAFE $ do
+      gen <- createSystemRandom
+      r <- genContVar (Lap.laplace 0 (maxSens / epsilon)) gen
       P.return (r + unSDouble x)
 
 laplaceL :: forall eps s. (TL.KnownNat (MaxSens s))
