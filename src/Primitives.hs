@@ -209,25 +209,28 @@ clipDouble x =
   in
     D_UNSAFE $ if x' > bound then bound else if x' < -bound then -bound else x'
 
-clipL1 :: forall m senv.
- -- FIXME: lose sensitivity to 1, only make sense on count!!!
-  L1List (SDouble m) senv -> L1List (SDouble Diff) (TruncateSens 1 senv)
+clipL1 :: forall b m senv. (KnownNat b) => -- FIXME: lose sensitivity to 1, only make sense on count!!!
+  L1List (SDouble m) senv -> L1List (SDouble Diff) (TruncateSens b senv)
 clipL1 (SList_UNSAFE xs) =
-  let
-    xs' = map unSDouble xs
-    sum = List.sum xs'
-  in
-    map (\x -> D_UNSAFE $ x / sum) xs' & SList_UNSAFE
+    if norm > valb
+    then map (\x -> D_UNSAFE $ x / norm ) xs' & SList_UNSAFE
+    else map D_UNSAFE xs' & SList_UNSAFE
+    where
+        valb = fromIntegral $ natVal (Proxy::Proxy b)
+        xs' = map (abs . unSDouble) xs
+        norm = List.sum xs'
 
 -- FIXME: has some problems
-clipL2 :: forall m senv.
-  L2List (SDouble m) senv -> L2List (SDouble Diff) (TruncateSens 1 senv)
+clipL2 :: forall b m senv. (KnownNat b) =>
+  L2List (SDouble m) senv -> L2List (SDouble Diff) (TruncateSens b senv)
 clipL2 (SList_UNSAFE xs) =
-  let
-    xs' = map unSDouble xs
-    l2Sum = sqrt $ List.sum $ map (**2) xs'
-  in
-    map (\x -> D_UNSAFE $ x / l2Sum) xs' & SList_UNSAFE
+    if norm > valb
+    then map (\x -> D_UNSAFE $ x / norm ) xs' & SList_UNSAFE
+    else map D_UNSAFE xs' & SList_UNSAFE
+    where
+        valb = fromIntegral $ natVal (Proxy::Proxy b)
+        xs' = map unSDouble xs
+        norm = sqrt $ List.sum $ map (**2) xs'
 
 szip :: SList m a s1 -> SList m b s2 -> SList m (L1Pair a b) (s1 +++ s2)
 szip xs ys = SList_UNSAFE xys & unsafeLiftSens where
