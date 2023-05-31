@@ -250,6 +250,8 @@ ssnd p = snd $ unSPair p
 -- Primitives for Partition
 --------------------------------------------------
 
+-- Given a partitioning function f and a dataset xs, part computes the
+-- partition according to f
 part :: forall k cm t s. (Ord k, (MaxSens s) TL.== 1) => (t s -> k) -> SList cm t s -> Partition k cm t s
 part f xs =
   let
@@ -277,16 +279,23 @@ seqloop f init =
   in
     unsafeCoerce $ loop 0 (P.return init)
 
--- `f` takes a key and a SList associated with that key
-parallel :: (k -> SList cm t s -> PM p a) -> Partition k cm t s -> PM p (Map.Map k a)
-parallel f partition =
-  let
-    pms = Map.mapWithKey f $ unPartition partition
-    pms' = Map.mapWithKey (\k pm -> unPM pm P.>>= \x -> P.return x) pms
-    pms'' = sequence pms'
-  in
-    PM_UNSAFE pms''
-
 -- advloop :: forall k delta_prime p a.
 --   (TL.KnownNat k) => (Int -> a -> PM p a) -> a -> PM (AdvComp k delta_prime p) a
 -- advloop = undefined
+
+
+--------------------------------------------------
+-- Parallel composition
+--------------------------------------------------
+
+-- Given a function and partition, parallel computes f on each part making up
+-- the partition
+parallel :: (SList cm t s -> PM p a) -> Partition k cm t s -> PM p (Map.Map k a)
+parallel f partition =
+  let
+    unsens_part = unPartition partition
+    applied_part = Map.map f unsens_part
+    unpm_part = Map.map (\pm -> unPM pm P.>>= \x -> P.return x) applied_part
+    p = sequence unpm_part
+  in
+    PM_UNSAFE p

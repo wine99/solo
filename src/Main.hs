@@ -42,50 +42,17 @@ import qualified Data.Map.Strict as Map
 import qualified GHC.List as List
 import Sensitivity (SList(SList_UNSAFE), SDouble (D_UNSAFE))
 
-
---------------------------------------------------
--- Simple examples
---------------------------------------------------
-
-dbl :: SDouble Diff senv -> SDouble Diff (senv +++ senv)
-dbl x = x <+> x
-
-simplePrivacyFunction :: TL.KnownNat (MaxSens (s +++ s)) =>
-  SDouble Diff s -> PM (TruncatePriv (RNat 2) Zero (s +++ s)) Double
-simplePrivacyFunction x = laplace @(RNat 2) (dbl x)
-
-addNoiseTwice :: TL.KnownNat (MaxSens s) => SDouble Diff s
-  -> PM (TruncatePriv (RNat 2) Zero s ++++ TruncatePriv (RNat 3) Zero s) Double
-addNoiseTwice x = do
-  a <- laplace @(RNat 2) x
-  b <- laplace @(RNat 3) x
-  return $ a + b
-
-egAddNoiseTwice :: Double -> PM '[ '("input_db", RNat 5, Zero) ] Double
-egAddNoiseTwice x = addNoiseTwice (sConstD @'[ '( "input_db", NatSens 1 ) ] x)
-
--- FAIL version from the paper:
---
--- sumListFail xs = sfoldr (<+>) (sConstD @'[] 0) xs
-
--- Correct version
-sumList :: L1List (SDouble Diff) s -> SDouble Diff s
-sumList xs = cong scale_unit $ sfoldr @1 @1 scalePlus (sConstD @'[] 0) xs
-  where scalePlus a b = cong (eq_sym scale_unit) a <+> cong (eq_sym scale_unit) b
-
--- FAIL branching on sdouble
--- (NOTE: this no longer fails if you change the import `SensitivitySafe` to
--- `Sensitivity`)
---
--- tryBranchFail :: SDouble Diff s1 -> Double
--- tryBranchFail x = case x of
---   D_UNSAFE z -> z
-
-
 --------------------------------------------------
 -- CDF Example
 --------------------------------------------------
 
+-- Our dataset is a list of random numbers between 0 and 100
+exampleDB :: IO (L1List (SDouble Disc) '[ '("random_numbers.txt", NatSens 1 ) ])
+exampleDB = sReadFileL "random_numbers.txt"
+
+-------- Computing CDF using Sequential composition --------
+
+-- The sequential CDF query
 cdf :: forall ε iterations s. (TL.KnownNat (MaxSens s), TL.KnownNat iterations, TL.KnownRat ε) =>
   [Double] -> L1List (SDouble Disc) s -> PM (ScalePriv (TruncatePriv ε Zero s) iterations) [Double]
 cdf buckets db = seqloop @iterations (\i results -> do
@@ -93,36 +60,63 @@ cdf buckets db = seqloop @iterations (\i results -> do
                                          r <- laplace @ε c
                                          return (r : results)) []
 
-exampleDB :: IO (L1List (SDouble Disc) '[ '("random_numbers.txt", NatSens 1 ) ])
-exampleDB = sReadFileL "random_numbers.txt"
+-- Running the query on our dataset with privacy budget ε = 100
 
--- ε = 100
-examplecdf :: IO (PM '[ '("random_numbers.txt", RNat 100, Zero ) ] [Double])
-examplecdf =
+sequentialCDF_PM :: IO
+  (PM
+     '[ '("random_numbers.txt", 'Pos 100 ':% 1, 'Pos 0 ':% 1)] [Double])
+sequentialCDF_PM =
   exampleDB P.>>= \exampleDB ->
   P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
 
+-- Extracting the result from the privacy monad and rounding (post-processing)
+sequentialCDF = 
+  sequentialCDF_PM P.>>= \cdfResult ->
+  unPM cdfResult P.>>= \cdfResult -> 
+  P.return $ map round cdfResult
 
+-------- Computing CDF using Parallel composition --------
+
+-- Function that designates in which bin a number from our dataset falls into
+-- Here, we use 100 bins, so we can simply truncate the double
 assignBin :: SDouble m s -> Integer
 assignBin sdouble = truncate $ unSDouble sdouble
 
+-- Create a partition "parted" using assignBin
 parted =
   exampleDB P.>>= \exampleDB ->
   P.return $ part assignBin exampleDB
 
-noisyCount k xs = do
+-- A 1-differentially private query that counts the number of elements in xs.
+noisyCount xs = do
   let c = count xs
   laplace @(RNat 1) c
 
--- Here Haskell can infer the type of `histogramPM` is
---  PM '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map Integer Double)
--- So parallel cdf satisfies 1,0-differential privacy
-parallelCdf =
+-- Compute the noisy histogram by applying noisyCount on each part of parted
+noisyHistogram_PM :: IO
+  (PM
+     '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)]
+     (Map.Map Integer Double))
+noisyHistogram_PM = 
   parted P.>>= \parted ->
   let histogramPM = parallel noisyCount parted in
+    P.return histogramPM
+
+-- Here Haskell can infer the type of `histogramPM` is
+--  PM '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map Integer Double)
+-- So the histogram query satisfies 1-differential privacy
+
+-- We now do post-processing on the noisy histogram to get out a cdf
+-- The counts are also rounded off
+parallelCDF =
+  noisyHistogram_PM P.>>= \histogramPM ->
   unPM histogramPM P.>>= \histogram ->
-  let kvs = Map.toAscList histogram in
-  P.return [List.sum (map snd (take i kvs)) | i <- [1 .. length kvs]]
+  let kvs = Map.toAscList histogram
+      cdf = [List.sum (map snd (take i kvs)) | i <- [1 .. length kvs]]
+      rounded_cdf = map round cdf
+  in
+    P.return rounded_cdf
+
 
 --------------------------------------------------
 -- Gradient descent example
@@ -166,7 +160,7 @@ gradientDescentAdv weights xs =
 
 -}
 
-{- This could compile, but the default reduction stack for equality checking of the natrual numbers is exceeded
+{- This could compile, but the default reduction stack for equality checking of the natural numbers is exceeded
 
 -- SExample of passing in specific numbers to reduce the expression down to literals
 -- Satisfies (1, 1e-5)-DP
@@ -230,18 +224,19 @@ filterCount :: Integer -> L1List (SDouble m) s -> SDouble 'Diff s
 filterCount option dataset = count $ sfilter (\x -> (round x) == option) dataset
 
 
-mostFrequent = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
+mostFrequent_PM = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
+
+mostFrequent = 
+  mostFrequent_PM P.>>= \result_PM ->
+  unPM result_PM P.>>= \result -> 
+  P.return result
 
 
-{-
-
-main = 
-  examplecdf P.>>= \cdfResult ->
-  unPM cdfResult P.>>= \cdfResult ->
-  print cdfResult
-
- -}
-
-
-main = mostFrequent P.>>= \pm -> unPM pm P.>>= print
--- main = parallelCdf P.>>= \cdfResult -> print cdfResult
+main = do
+  putStrLn "------- Running all demos -------"
+  putStrLn "CDF - Sequential:"
+  sequentialCDF P.>>= \cdfResult -> print cdfResult
+  putStrLn "CDF - Parallel:"
+  parallelCDF P.>>= \cdfResult -> print cdfResult
+  putStrLn "Most frequent rounded number from Laplace samples"
+  mostFrequent P.>>= \mfResult -> print mfResult
