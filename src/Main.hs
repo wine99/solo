@@ -218,12 +218,13 @@ samples =
           laplaceSamples P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
 
 options :: [Integer]
-options = [-10 .. 10]
+options = [0 .. 10]
 
 filterCount :: Integer -> L1List (SDouble m) s -> SDouble 'Diff s
 filterCount option dataset = count $ sfilter (\x -> (round x) == option) dataset
 
 
+mostFrequent_PM :: IO (PM '[ '("", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] Integer)
 mostFrequent_PM = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
 
 mostFrequent = 
