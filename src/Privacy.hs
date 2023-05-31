@@ -140,7 +140,7 @@ gaussL x =
             noise <- genContVar distr gen
             P.return ( noise + (unSDouble xx))
     in
-        PM_UNSAFE $ P.return $ mapM addNoise (unSList x)
+        PM_UNSAFE $ mapM addNoise (unSList x)
 
         -- mapM addNoise x
 
