@@ -60,14 +60,14 @@ cdf buckets db = seqloop @iterations (\i results -> do
                                          r <- laplace @ε c
                                          return (r : results)) []
 
--- Running the query on our dataset with privacy budget ε = 100
+-- Running the query on our dataset with privacy budget ε = 1
 
 sequentialCDF_PM :: IO
   (PM
-     '[ '("random_numbers.txt", 'Pos 100 ':% 1, 'Pos 0 ':% 1)] [Double])
+     '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] [Double])
 sequentialCDF_PM =
   exampleDB P.>>= \exampleDB ->
-  P.return $ cdf @(RNat 1) @100 [0..100] exampleDB
+  P.return $ cdf @(RLit 1 100) @100 [0..100] exampleDB
 
 -- Extracting the result from the privacy monad and rounding (post-processing)
 sequentialCDF = 
