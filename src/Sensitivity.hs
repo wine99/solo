@@ -33,11 +33,6 @@ data Sensitivity = InfSens | NatSens TL.Nat           -- sensitivity values
 type SEnv = [(Source, Sensitivity)]                   -- sensitivity environments
 
 data NMetric = Diff | Disc                            -- distance metrics for numeric types Diff = |𝑣1 − 𝑣2|, Disc = 1
-
---
--- interface SDouble<M extends NMetric, S extends SEnv> {
-  -- unSDouble: number;
--- }
 newtype SDouble (m :: NMetric) (s :: SEnv) = D_UNSAFE { unSDouble :: Double }
 
 data CMetric = L1 | L2 | LInf                         -- metrics for compound types
@@ -66,9 +61,6 @@ type LInfList = SList LInf                                 -- $τ␣‹alist›$
   LInfList means the sensitivity of the list is the maximum of the sensitivities of its elements.
   Where can we use this? When randomly draw an element from a list?
 
-  FIXME In primitives.hs and StdLib.hs, why do some functions work only on L1List?
-
-
   Why do we need TruncateSens?
   If we want to implement parallel composition, if we don't have TruncateSens,
   does it then mean as long as the sensitivty of a list is 1, we can be sure that
@@ -85,7 +77,6 @@ type family IsEQ (o :: Ordering) :: Bool where
   IsEQ 'EQ = 'True
   IsEQ _ = 'False
 
--- b?x:y operations
 type family Cond (b :: Bool) (x :: a) (y :: a) where
   Cond 'True x _ = x
   Cond 'False _ y = y

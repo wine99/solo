@@ -50,7 +50,6 @@ eq_sym :: Id a b -> Id b a
 eq_sym p = case p of
   Id -> Id
 
--- a==b ⇔ t a == t b
 cong :: forall a b t. Id a b -> t a -> t b
 cong p x = case p of
              Id -> x
