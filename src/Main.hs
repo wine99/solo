@@ -250,7 +250,7 @@ histogramMF_PM =
   let histogramPM = parallel noisyCount mf_p in
     P.return histogramPM
 
--- Post processing: find most occurring number
+-- Post processing: find most frequently occurring number
 parallelMF =
   histogramMF_PM P.>>= \hg_PM ->
   unPM hg_PM P.>>= \hg ->
