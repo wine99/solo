@@ -127,7 +127,6 @@ gaussL ::
   (TL.KnownNat (MaxSens s), TL.KnownRat delta, TL.KnownRat eps) =>
   L2List (SDouble Diff) s ->
   PM (TruncatePriv eps delta s)  [Double]
--- gaussL x = undefined
 gaussL x =
     let ss = fromInteger $ natVal (Proxy :: Proxy (MaxSens s))
         dlta = fromRational $ ratVal (Proxy :: Proxy delta)
