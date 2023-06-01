@@ -81,7 +81,7 @@ priv_idemp     :: forall n eps delta senv. Id (TruncatePriv eps delta (TruncateS
 
 scale_unit = unsafeCoerce Id
 maxnat_idemp = undefined
-truncate_n_inf = unsafeCoerce Id
+truncate_n_inf = undefined
 scale_distrib = undefined
 trunc_distrib = undefined
 scale_max = undefined
@@ -210,7 +210,7 @@ clipDouble x =
   in
     D_UNSAFE $ if x' > bound then bound else if x' < -bound then -bound else x'
 
-clipL1 :: forall b m senv. (KnownNat b) => -- FIXME: lose sensitivity to 1, only make sense on count!!!
+clipL1 :: forall b m senv. (KnownNat b) =>
   L1List (SDouble m) senv -> L1List (SDouble Diff) (TruncateSens b senv)
 clipL1 (SList_UNSAFE xs) =
     if norm > valb
@@ -221,7 +221,6 @@ clipL1 (SList_UNSAFE xs) =
         xs' = map (abs . unSDouble) xs
         norm = List.sum xs'
 
--- FIXME: has some problems
 clipL2 :: forall b m senv. (KnownNat b) =>
   L2List (SDouble m) senv -> L2List (SDouble Diff) (TruncateSens b senv)
 clipL2 (SList_UNSAFE xs) =
@@ -256,6 +255,8 @@ ssnd p = snd $ unSPair p
 -- Primitives for Partition
 --------------------------------------------------
 
+-- Given a partitioning function f and a dataset xs, part computes the
+-- partition according to f
 part :: forall k cm t s. (Ord k, (MaxSens s) TL.== 1) => (t s -> k) -> SList cm t s -> Partition k cm t s
 part f xs =
   let
@@ -281,18 +282,25 @@ seqloop f init =
         accu P.>>= \accu' ->
         loop (i+1) (unPM $ f i accu')
   in
-    unsafeCoerce $ loop 0 (P.return init)
-
--- `f` takes a key and a SList associated with that key
-parallel :: (k -> SList cm t s -> PM p a) -> Partition k cm t s -> PM p (Map.Map k a)
-parallel f partition =
-  let
-    pms = Map.mapWithKey f $ unPartition partition
-    pms' = Map.mapWithKey (\k pm -> unPM pm P.>>= \x -> P.return x) pms
-    pms'' = sequence pms'
-  in
-    PM_UNSAFE pms''
+    PM_UNSAFE $ loop 0 (P.return init)
 
 -- advloop :: forall k delta_prime p a.
 --   (TL.KnownNat k) => (Int -> a -> PM p a) -> a -> PM (AdvComp k delta_prime p) a
 -- advloop = undefined
+
+
+--------------------------------------------------
+-- Parallel composition
+--------------------------------------------------
+
+-- Given a function and partition, parallel computes f on each part making up
+-- the partition
+parallel :: (SList cm t s -> PM p a) -> Partition k cm t s -> PM p (Map.Map k a)
+parallel f partition =
+  let
+    unsens_part = unPartition partition
+    applied_part = Map.map f unsens_part
+    unpm_part = Map.map (\pm -> unPM pm P.>>= P.return) applied_part
+    p = sequence unpm_part
+  in
+    PM_UNSAFE p
