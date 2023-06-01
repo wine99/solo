@@ -209,6 +209,9 @@ clipDouble x =
   in
     D_UNSAFE $ if x' > bound then bound else if x' < -bound then -bound else x'
 
+clipList :: forall b cm s. (KnownNat b) => SList cm (SDouble Disc) s -> SList cm (SDouble Diff) (ScaleSens s b)
+clipList xs = unSList xs & map (clipDouble @b) & sConstL
+
 clipL1 :: forall m senv.
   L1List (SDouble m) senv -> L1List (SDouble Diff) (TruncateSens 1 senv)
 clipL1 (SList_UNSAFE xs) =
