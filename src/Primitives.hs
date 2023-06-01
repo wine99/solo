@@ -196,11 +196,11 @@ sfoldr f init xs = unsafeLiftSens $ unSFoldr f (unsafeDropSens init) (unSList xs
   unSFoldr f init (x:xs) = unSFoldr f (unsafeDropSens $ f x (unsafeLiftSens init)) xs
 
 -- this could be defined using a truncation version of "fold"
-stmap :: forall n s2 a b.
-  (forall s1. a s1 -> b (TruncateSens n s1))
-  -> L1List a s2
-  -> L1List b (TruncateSens n s2)
-stmap f as = SList_UNSAFE $ map f (unSList as)
+-- stmap :: forall n s2 a b.
+--   (forall s1. a s1 -> b (TruncateSens n s1))
+--   -> L1List a s2
+--   -> L1List b (TruncateSens n s2)
+-- stmap f as = SList_UNSAFE $ map f (unSList as)
 
 clipDouble :: forall b m senv. (KnownNat b) => SDouble Disc senv -> SDouble Diff (ScaleSens senv b)
 clipDouble x =
@@ -211,7 +211,7 @@ clipDouble x =
     D_UNSAFE $ if x' > bound then bound else if x' < -bound then -bound else x'
 
 clipL1 :: forall b m senv. (KnownNat b) =>
-  L1List (SDouble m) senv -> L1List (SDouble Diff) (TruncateSens b senv)
+  L1List (SDouble m) senv -> L1List (SDouble Diff) (ScaleSens senv b)
 clipL1 (SList_UNSAFE xs) =
     if norm > valb
     then map (\x -> D_UNSAFE $ x / norm ) xs' & SList_UNSAFE
@@ -222,7 +222,7 @@ clipL1 (SList_UNSAFE xs) =
         norm = List.sum xs'
 
 clipL2 :: forall b m senv. (KnownNat b) =>
-  L2List (SDouble m) senv -> L2List (SDouble Diff) (TruncateSens b senv)
+  L2List (SDouble m) senv -> L2List (SDouble Diff) (ScaleSens senv b)
 clipL2 (SList_UNSAFE xs) =
     if norm > valb
     then map (\x -> D_UNSAFE $ x / norm ) xs' & SList_UNSAFE

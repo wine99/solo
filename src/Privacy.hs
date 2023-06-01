@@ -110,36 +110,23 @@ laplaceL :: forall eps s. (TL.KnownNat (MaxSens s))
   -> PM (TruncatePriv eps Zero s) [Double]
 laplaceL x = undefined
 
-laplaceLN :: forall eps n s. (TL.KnownNat n)
-  => L1List (SDouble Diff) (TruncateSens n s)
-  -> PM (TruncatePriv eps Zero s) [Double]
-laplaceLN x = undefined
-
-gaussL ::
-  forall eps delta n s.
-  (TL.KnownNat (MaxSens s), TL.KnownRat delta, TL.KnownRat eps) =>
-  L2List (SDouble Diff) s ->
-  PM (TruncatePriv eps delta s)  [Double]
+gaussL :: forall eps delta n s.
+  (TL.KnownNat (MaxSens s), TL.KnownRat delta, TL.KnownRat eps)
+  => L2List (SDouble Diff) s
+  -> PM (TruncatePriv eps delta s)  [Double]
 gaussL x =
-    let ss = fromInteger $ natVal (Proxy :: Proxy (MaxSens s))
+    let sens = fromInteger $ natVal (Proxy :: Proxy (MaxSens s))
         dlta = fromRational $ ratVal (Proxy :: Proxy delta)
         e = fromRational $ ratVal (Proxy :: Proxy eps)
-        sigma = sqrt (2 * ss * ss * log (1.25 / dlta) / (e * e))
+        sigma = sqrt (2 * sens * sens * log (1.25 / dlta) / (e * e))
     in
-    let addNoise xx = do
+    let addNoise x = do
             gen <- createSystemRandom
             let distr = Gaussian.normalDistr 0.0 sigma
             noise <- genContVar distr gen
-            P.return ( noise + (unSDouble xx))
+            P.return $ noise + (unSDouble x)
     in
         PM_UNSAFE $ mapM addNoise (unSList x)
-
-        -- mapM addNoise x
-
-gaussLN :: forall eps delta n s. (TL.KnownNat n)
-  => L2List (SDouble Diff) (TruncateSens n s)
-  -> PM (TruncatePriv eps delta s) [Double]
-gaussLN x = undefined
 
 expMech :: forall eps s1 t1 t2. (TL.KnownNat (MaxSens s1), TL.KnownRat eps) => 
   (forall s. t1 -> t2 s -> SDouble Diff s)

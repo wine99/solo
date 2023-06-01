@@ -33,9 +33,6 @@ import Primitives
 import Unsafe.Coerce (unsafeCoerce)
 
 
-summationFunction :: L1List (SDouble Disc) senv -> SDouble Diff (TruncateSens 1 senv)
-summationFunction xs = sum (clipL1 @1 xs)
-
 sumFn :: forall s1 s2. SDouble Diff s1 -> SDouble Diff s2 -> SDouble Diff (ScaleSens s1 1 +++ ScaleSens s2 1)
 sumFn x y = cong (eq_sym scale_unit) x <+> cong (eq_sym scale_unit) y
 

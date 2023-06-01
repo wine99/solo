@@ -19,10 +19,9 @@
    ,EmptyCase
    #-}
 
-module GussianExample where
+module GaussianExample where
 
-import Prelude hiding (sum) -- 默认导入的模块
--- import qualified Prelude as P   -- 别名为 P
+import Prelude hiding (sum)
 import Data.TypeLits as TL
 import Data.Proxy
 

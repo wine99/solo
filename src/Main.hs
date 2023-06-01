@@ -122,6 +122,8 @@ parallelCDF =
 -- Gradient descent example
 --------------------------------------------------
 
+{- gradient descent does not work yet
+
 type Weights = [Double]
 type Example = [Double]
 type SExample = L2List (SDouble Disc)
@@ -146,8 +148,6 @@ gradientDescent weights xs =
             gradSum = sfoldr1s sListSum1s (sConstL @'[] []) clippedGrads
         in gaussLN @ε @δ @1 @s gradSum
   in seqloop @iterations gradStep weights
-
-{- gradient descent does not work as it requires AdvComp
 
 gradientDescentAdv :: forall ε δ iterations s.
   (TL.KnownNat iterations) =>
