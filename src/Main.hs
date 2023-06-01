@@ -204,9 +204,10 @@ multiplicativeWeights = undefined
 
 
 --------------------------------------------------
--- Exponential Mechanism on Laplace Samples
+-- Most Frequently occurring rounded number from Laplace Samples
 --------------------------------------------------
 
+-- Generating the Laplace samples
 samples :: IO (SList m (SDouble m1) '[ '("", NatSens 1 ) ])
 samples = 
       let sampleLaplace = 
@@ -217,27 +218,62 @@ samples =
       in
           laplaceSamples P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
 
+
+-------- Computing Most Frequent using Exponential composition --------
 options :: [Integer]
 options = [0 .. 10]
 
 filterCount :: Integer -> L1List (SDouble m) s -> SDouble 'Diff s
 filterCount option dataset = count $ sfilter (\x -> (round x) == option) dataset
 
+exponentialMF_PM :: IO (PM '[ '("", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] Integer)
+exponentialMF_PM = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
 
-mostFrequent_PM :: IO (PM '[ '("", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] Integer)
-mostFrequent_PM = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
-
-mostFrequent = 
-  mostFrequent_PM P.>>= \result_PM ->
+exponentialMF = 
+  exponentialMF_PM P.>>= \result_PM ->
   unPM result_PM P.>>= \result -> 
   P.return result
 
 
+-------- Computing Most Frequent using Parallel composition --------
+assignBinMF sdouble = round $ unSDouble sdouble
+
+partedMF =
+  samples P.>>= \samples ->
+  P.return $ part assignBinMF samples
+
+-- Compute noisy histogram
+histogramMF_PM :: IO
+  (PM '[ '("", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map.Map Integer Double))
+histogramMF_PM = 
+  partedMF P.>>= \mf_p ->
+  let histogramPM = parallel noisyCount mf_p in
+    P.return histogramPM
+
+-- Post processing: find most occurring number
+parallelMF =
+  histogramMF_PM P.>>= \hg_PM ->
+  unPM hg_PM P.>>= \hg ->
+  let
+    kvs = Map.toAscList hg
+    mf = foldl (\a -> \b -> 
+      case (snd a) > (snd b) of 
+        True -> a 
+        False -> b) (head kvs) (tail kvs)
+  in
+    P.return $ fst mf
+
+
+--------------------------------------------------
+-- Main
+--------------------------------------------------
 main = do
   putStrLn "------- Running all demos -------"
   putStrLn "CDF - Sequential:"
   sequentialCDF P.>>= \cdfResult -> print cdfResult
   putStrLn "CDF - Parallel:"
   parallelCDF P.>>= \cdfResult -> print cdfResult
-  putStrLn "Most frequent rounded number from Laplace samples"
-  mostFrequent P.>>= \mfResult -> print mfResult
+  putStrLn "Most frequent rounded number from Laplace samples - Exponential"
+  exponentialMF P.>>= \mfResult -> print mfResult
+  putStrLn "Most frequent rounded number from Laplace samples - Parallel"
+  parallelMF P.>>= \mfResult -> print mfResult
