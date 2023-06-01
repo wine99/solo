@@ -50,6 +50,7 @@ eq_sym :: Id a b -> Id b a
 eq_sym p = case p of
   Id -> Id
 
+-- a==b ⇔ t a == t b
 cong :: forall a b t. Id a b -> t a -> t b
 cong p x = case p of
              Id -> x
@@ -80,7 +81,7 @@ priv_idemp     :: forall n eps delta senv. Id (TruncatePriv eps delta (TruncateS
 
 scale_unit = unsafeCoerce Id
 maxnat_idemp = undefined
-truncate_n_inf = undefined
+truncate_n_inf = unsafeCoerce Id
 scale_distrib = undefined
 trunc_distrib = undefined
 scale_max = undefined

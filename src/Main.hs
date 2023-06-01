@@ -137,7 +137,8 @@ clippedGrad :: forall senv cm m.
   Weights -> SExample senv -> L2List (SDouble Diff) (TruncateSens 1 senv)
 clippedGrad weights x =
   let g = infsensL (gradient weights) x         -- apply the infinitely-sensitive function
-  in cong (truncate_n_inf @1 @senv) $ clipL2 g  -- clip the results and return
+  in cong (truncate_n_inf @1 @senv) $ clipL2 @1 g  -- clip the results and return
+  -- in clipL2 g  -- clip the results and return
 
 gradientDescent :: forall ε δ iterations s.
   (TL.KnownNat iterations) =>
