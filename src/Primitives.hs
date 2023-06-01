@@ -277,7 +277,7 @@ seqloop f init =
         accu P.>>= \accu' ->
         loop (i+1) (unPM $ f i accu')
   in
-    unsafeCoerce $ loop 0 (P.return init)
+    PM_UNSAFE $ loop 0 (P.return init)
 
 -- advloop :: forall k delta_prime p a.
 --   (TL.KnownNat k) => (Int -> a -> PM p a) -> a -> PM (AdvComp k delta_prime p) a
@@ -295,7 +295,7 @@ parallel f partition =
   let
     unsens_part = unPartition partition
     applied_part = Map.map f unsens_part
-    unpm_part = Map.map (\pm -> unPM pm P.>>= \x -> P.return x) applied_part
+    unpm_part = Map.map (\pm -> unPM pm P.>>= P.return) applied_part
     p = sequence unpm_part
   in
     PM_UNSAFE p
