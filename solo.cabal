@@ -13,7 +13,6 @@ build-type:     Simple
 executable solo
   main-is: Main.hs
   other-modules:
-      GaussianExample
       Primitives
       Privacy
       PrivacySafe
