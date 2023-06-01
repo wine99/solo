@@ -45,8 +45,9 @@ import Sensitivity (SList(SList_UNSAFE), SDouble (D_UNSAFE))
 import System.IO
 
 readDoublesFromFile :: FilePath -> IO (Maybe [Double])
-readDoublesFromFile filePath = do
-    content <- readFile filePath
-    let linesOfContent = lines content
-    return $ mapM readMaybe linesOfContent
+readDoublesFromFile filePath = undefined
+--readDoublesFromFile filePath = do
+--    content <- readFile filePath
+--    let linesOfContent = lines content
+--    return $ mapM readMaybe linesOfContent
 
