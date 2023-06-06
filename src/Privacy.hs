@@ -105,30 +105,47 @@ laplace x =
       r <- genContVar (Lap.laplace 0 (maxSens / epsilon)) gen
       P.return (r + unSDouble x)
 
-laplaceL :: forall eps s. (TL.KnownNat (MaxSens s))
-  => L1List (SDouble Diff) s
-  -> PM (TruncatePriv eps Zero s) [Double]
-laplaceL x = undefined
 
-gaussL :: forall eps delta n s.
+-- See notes in Sensitive.hs for difference between gaussL and gaussLN
+
+gaussL :: forall eps delta s.
   (TL.KnownNat (MaxSens s), TL.KnownRat delta, TL.KnownRat eps)
   => L2List (SDouble Diff) s
   -> PM (TruncatePriv eps delta s)  [Double]
-gaussL x =
-    let sens = fromInteger $ natVal (Proxy :: Proxy (MaxSens s))
+gaussL (SList_UNSAFE xs) =
+    let sens = fromInteger $ fromIntegral (length xs) * natVal (Proxy :: Proxy (MaxSens s))
         dlta = fromRational $ ratVal (Proxy :: Proxy delta)
         e = fromRational $ ratVal (Proxy :: Proxy eps)
         sigma = sqrt (2 * sens * sens * log (1.25 / dlta) / (e * e))
     in
     let addNoise x = do
             gen <- createSystemRandom
-            let distr = Gaussian.normalDistr 0.0 sigma
+            let distr = Gaussian.normalDistr 0 sigma
             noise <- genContVar distr gen
             P.return $ noise + (unSDouble x)
     in
-        PM_UNSAFE $ mapM addNoise (unSList x)
+        PM_UNSAFE $ mapM addNoise xs
 
-expMech :: forall eps s1 t1 t2. (TL.KnownNat (MaxSens s1), TL.KnownRat eps) => 
+gaussLN :: forall eps delta b s.
+  (TL.KnownRat delta, TL.KnownRat eps, TL.KnownNat b)
+  => L2List (SDouble Diff) (TruncateSens b s)
+  -> PM (TruncatePriv eps delta s)  [Double]
+gaussLN (SList_UNSAFE xs) =
+    let sens = fromInteger $ natVal (Proxy :: Proxy b)
+        dlta = fromRational $ ratVal (Proxy :: Proxy delta)
+        e = fromRational $ ratVal (Proxy :: Proxy eps)
+        sigma = sqrt (2 * sens * sens * log (1.25 / dlta) / (e * e))
+    in
+    let addNoise x = do
+            gen <- createSystemRandom
+            let distr = Gaussian.normalDistr 0 sigma
+            noise <- genContVar distr gen
+            P.return $ noise + (unSDouble x)
+    in
+        PM_UNSAFE $ mapM addNoise xs
+
+
+expMech :: forall eps s1 t1 t2. (TL.KnownNat (MaxSens s1), TL.KnownRat eps) =>
   (forall s. t1 -> t2 s -> SDouble Diff s)
   -> [t1]
   -> t2 s1

@@ -30,8 +30,9 @@ import Data.Function
 import SensitivitySafe
 import PrivacySafe
 import Primitives
-import Unsafe.Coerce (unsafeCoerce)
 
+clipList :: forall b s. (KnownNat b) => L1List (SDouble Disc) s -> L1List (SDouble Diff) (ScaleSens s b)
+clipList xs = unSList xs & map (clipDouble @b) & sConstL
 
 sumFn :: forall s1 s2. SDouble Diff s1 -> SDouble Diff s2 -> SDouble Diff (ScaleSens s1 1 +++ ScaleSens s2 1)
 sumFn x y = cong (eq_sym scale_unit) x <+> cong (eq_sym scale_unit) y

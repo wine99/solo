@@ -78,16 +78,16 @@ plus_cong      :: forall s1 s1' s2 s2'. Id s1 s1' -> Id s2 s2' -> Id (s1 +++ s2)
 priv_idemp     :: forall n eps delta senv. Id (TruncatePriv eps delta (TruncateSens n senv))
                                               (TruncatePriv eps delta senv)
 
-scale_unit = unsafeCoerce Id
-maxnat_idemp = undefined
-truncate_n_inf = undefined
-scale_distrib = undefined
-trunc_distrib = undefined
-scale_max = undefined
-scale_cong1 = undefined
-scale_cong2 = undefined
-plus_cong = undefined
-priv_idemp = undefined
+scale_unit     = unsafeCoerce Id
+maxnat_idemp   = unsafeCoerce Id
+truncate_n_inf = unsafeCoerce Id
+scale_distrib  = unsafeCoerce Id
+trunc_distrib  = unsafeCoerce Id
+scale_max      = unsafeCoerce Id
+scale_cong1    = unsafeCoerce Id
+scale_cong2    = unsafeCoerce Id
+plus_cong      = unsafeCoerce Id
+priv_idemp     = unsafeCoerce Id
 
 --------------------------------------------------
 -- Primitives for Doubles
@@ -194,12 +194,11 @@ sfoldr f init xs = unsafeLiftSens $ unSFoldr f (unsafeDropSens init) (unSList xs
   unSFoldr f init [] = init
   unSFoldr f init (x:xs) = unSFoldr f (unsafeDropSens $ f x (unsafeLiftSens init)) xs
 
--- this could be defined using a truncation version of "fold"
--- stmap :: forall n s2 a b.
---   (forall s1. a s1 -> b (TruncateSens n s1))
---   -> L1List a s2
---   -> L1List b (TruncateSens n s2)
--- stmap f as = SList_UNSAFE $ map f (unSList as)
+stmap :: forall n s2 cm a b.
+  (forall s1. a s1 -> b (TruncateSens n s1))
+  -> SList cm a s2
+  -> SList cm b (TruncateSens n s2)
+stmap f as = SList_UNSAFE $ map f (unSList as)
 
 clipDouble :: forall b m senv. (KnownNat b) => SDouble Disc senv -> SDouble Diff (ScaleSens senv b)
 clipDouble x =
@@ -209,19 +208,8 @@ clipDouble x =
   in
     D_UNSAFE $ if x' > bound then bound else if x' < -bound then -bound else x'
 
-clipL1 :: forall b m senv. (KnownNat b) =>
-  L1List (SDouble m) senv -> L1List (SDouble Diff) (ScaleSens senv b)
-clipL1 (SList_UNSAFE xs) =
-    if norm > valb
-    then map (\x -> D_UNSAFE $ x / norm ) xs' & SList_UNSAFE
-    else map D_UNSAFE xs' & SList_UNSAFE
-    where
-        valb = fromIntegral $ natVal (Proxy::Proxy b)
-        xs' = map (abs . unSDouble) xs
-        norm = List.sum xs'
-
 clipL2 :: forall b m senv. (KnownNat b) =>
-  L2List (SDouble m) senv -> L2List (SDouble Diff) (ScaleSens senv b)
+  L2List (SDouble m) senv -> L2List (SDouble Diff) (TruncateSens b senv)
 clipL2 (SList_UNSAFE xs) =
     if norm > valb
     then map (\x -> D_UNSAFE $ x / norm ) xs' & SList_UNSAFE

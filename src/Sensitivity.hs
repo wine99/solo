@@ -67,6 +67,15 @@ type LInfList = SList LInf                                 -- $τ␣‹alist›$
   no two entries from the dataset have made contributions to a same element in the list?
 -}
 
+{-
+  TruncateSens should only be used in clipL1 and clipL2 and GaussLN.
+  `L2List (SDouble Diff) (TruncateSens b senv)` no longer means that each element is b-sensitive,
+  instead, it now describes that the L2-sensitivity of the list itself is b (the max L2-norm this list can have is b),
+  and we can only get such type by clipL2.
+  Note that, Haskell's type checker does not consider (TruncateSens b senv) and a senv with maxSens=b
+  as same types, which is also what we want.
+-}
+
 newtype Partition k cm t s = Partition_UNSAFE { unPartition :: Map.Map k (SList cm t s) }
 
 type family IsLT (o :: Ordering) :: Bool where

@@ -18,6 +18,8 @@
    ,RebindableSyntax
    ,EmptyCase
    #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use >=>" #-}
 
 module Main where
 
@@ -55,16 +57,13 @@ exampleDB = sReadFileL "random_numbers.txt"
 -- The sequential CDF query
 cdf :: forall ε iterations s. (TL.KnownNat (MaxSens s), TL.KnownNat iterations, TL.KnownRat ε) =>
   [Double] -> L1List (SDouble Disc) s -> PM (ScalePriv (TruncatePriv ε Zero s) iterations) [Double]
-cdf buckets db = seqloop @iterations (\i results -> do
-                                         let c = count $ sfilter ((<) $ buckets !! i) db
-                                         r <- laplace @ε c
-                                         return (r : results)) []
+cdf buckets db =
+  seqloop @iterations (\i results -> do
+                        let c = count $ sfilter ((<) $ buckets !! i) db
+                        r <- laplace @ε c
+                        return (r : results)) []
 
 -- Running the query on our dataset with privacy budget ε = 1
-
-sequentialCDF_PM :: IO
-  (PM
-     '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] [Double])
 sequentialCDF_PM =
   exampleDB P.>>= \exampleDB ->
   P.return $ cdf @(RLit 1 100) @100 [0..100] exampleDB
@@ -122,7 +121,6 @@ parallelCDF =
 -- Gradient descent example
 --------------------------------------------------
 
-{- gradient descent does not work yet
 
 type Weights = [Double]
 type Example = [Double]
@@ -131,23 +129,25 @@ type SDataset senv = L1List SExample senv
 gradient :: Weights -> Example -> Weights
 gradient = undefined
 
-
-clippedGrad :: forall senv cm m.
-  Weights -> SExample senv -> L2List (SDouble Diff) (TruncateSens 1 senv)
+-- bound `b` is the maximum L2-norm the gradiant vector can have
+clippedGrad :: forall b senv cm m. (TL.KnownNat b) =>
+  Weights -> SExample senv -> L2List (SDouble Diff) (TruncateSens b senv)
 clippedGrad weights x =
   let g = infsensL (gradient weights) x         -- apply the infinitely-sensitive function
-  in cong (truncate_n_inf @1 @senv) $ clipL2 @1 g  -- clip the results and return
-  -- in clipL2 g  -- clip the results and return
+  in cong (truncate_n_inf @b @senv) $ clipL2 @b  g  -- clip the results and return
 
-gradientDescent :: forall ε δ iterations s.
-  (TL.KnownNat iterations) =>
+-- this is wrong, hard to implement... https://programming-dp.com/ch12.html#gradient-descent-with-differential-privacy
+gradientDescent :: forall ε δ iterations b s.
+  (TL.KnownRat ε, TL.KnownRat δ, TL.KnownNat iterations, TL.KnownNat b) =>
   Weights -> SDataset s -> PM (ScalePriv (TruncatePriv ε δ s) iterations) Weights
 gradientDescent weights xs =
   let gradStep i weights =
-        let clippedGrads = stmap @1 (clippedGrad weights) xs
+        let clippedGrads = stmap @b (clippedGrad @b weights) xs
             gradSum = sfoldr1s sListSum1s (sConstL @'[] []) clippedGrads
-        in gaussLN @ε @δ @1 @s gradSum
+        in gaussLN @ε @δ @b @s gradSum
   in seqloop @iterations gradStep weights
+
+{- AdvComp not supported
 
 gradientDescentAdv :: forall ε δ iterations s.
   (TL.KnownNat iterations) =>
@@ -167,9 +167,9 @@ gradientDescentAdv weights xs =
 -- Satisfies (1, 1e-5)-DP
 gdMain :: PM '[ '("dataset.dat", RNat 1, RLit 1 100000) ] Weights
 gdMain =
-  let weights = take 10 $ repeat 0
+  let weights = replicate 10 0
       dataset = sReadFile @"dataset.dat"
-  in gradientDescent @(RLit 1 100) @(RLit 1 10000000) @100 weights dataset
+  in gradientDescent @(RLit 1 100) @(RLit 1 10000000) @100 @5 weights dataset
 
 -}
 
@@ -210,7 +210,7 @@ multiplicativeWeights = undefined
 
 -- Generating the Laplace samples
 samples :: IO (SList m (SDouble m1) '[ '("", NatSens 1 ) ])
-samples = 
+samples =
       let sampleLaplace =
             createSystemRandom P.>>= \gen ->
             genContVar (Lap.laplace 5 10) gen P.>>= \r ->
