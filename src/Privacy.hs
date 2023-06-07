@@ -113,7 +113,7 @@ gaussL :: forall eps delta s.
   => L2List (SDouble Diff) s
   -> PM (TruncatePriv eps delta s)  [Double]
 gaussL (SList_UNSAFE xs) =
-    let sens = fromInteger $ fromIntegral (length xs) * natVal (Proxy :: Proxy (MaxSens s))
+    let sens = sqrt (fromIntegral (length xs)) * fromIntegral (natVal (Proxy :: Proxy (MaxSens s)))
         dlta = fromRational $ ratVal (Proxy :: Proxy delta)
         e = fromRational $ ratVal (Proxy :: Proxy eps)
         sigma = sqrt (2 * sens * sens * log (1.25 / dlta) / (e * e))
