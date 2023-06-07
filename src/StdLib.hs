@@ -76,3 +76,14 @@ sfoldr1s f init xs = cong prf $ sfoldr @1 @1 f' init xs
         f' a b = f (cong (eq_sym scale_unit) a) (cong (eq_sym scale_unit) b)
         prf = plus_cong @(ScaleSens s4 1) @s4 @(TruncateInf s5) scale_unit Id
 
+
+listDiv :: PM p1 [Double] -> PM p2 Double -> PM (p1 ++++ p2) [Double]
+listDiv xs y =
+  xs PrivacySafe.>>= \xs ->
+  y PrivacySafe.>>= \y ->
+  return $ map (/ y) xs
+
+listDiv2 :: PM p1 [Double] -> Double -> PM p1 [Double]
+listDiv2 xs y =
+  xs PrivacySafe.>>= \xs ->
+  return $ map (/ y) xs

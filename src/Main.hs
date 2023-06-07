@@ -137,14 +137,18 @@ clippedGrad weights x =
   in cong (truncate_n_inf @b @senv) $ clipL2 @b  g  -- clip the results and return
 
 -- this is wrong, hard to implement... https://programming-dp.com/ch12.html#gradient-descent-with-differential-privacy
+-- want kε+1,δ not k(ε+1),δ
 gradientDescent :: forall ε δ iterations b s.
-  (TL.KnownRat ε, TL.KnownRat δ, TL.KnownNat iterations, TL.KnownNat b) =>
-  Weights -> SDataset s -> PM (ScalePriv (TruncatePriv ε δ s) iterations) Weights
+  (TL.KnownRat ε, TL.KnownRat δ, TL.KnownNat iterations, TL.KnownNat b, TL.KnownNat (MaxSens s)) =>
+  Weights -> SDataset s -> PM (ScalePriv (TruncatePriv ε δ s ++++ TruncatePriv (RNat 1) Zero s) iterations) Weights
 gradientDescent weights xs =
-  let gradStep i weights =
+  let noisyC = noisyCount xs
+      gradStep i weights =
         let clippedGrads = stmap @b (clippedGrad @b weights) xs
             gradSum = sfoldr1s sListSum1s (sConstL @'[] []) clippedGrads
-        in gaussLN @ε @δ @b @s gradSum
+            noisyGradSum = gaussLN @ε @δ @b @s gradSum
+            noisyGradAvg = listDiv noisyGradSum noisyC
+        in noisyGradAvg
   in seqloop @iterations gradStep weights
 
 {- AdvComp not supported
