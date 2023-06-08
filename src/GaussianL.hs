@@ -62,6 +62,6 @@ ggg = let res = parted (sReadFileL "random_numbers.txt") in
                  P.return $ gaussL @('Pos 1 ':% 1) @('Pos 1 ':% 10000) l2list
 
 gExample = do
-    putStrLn "Gaussian example ( count(e<50), count(e>=50) | e ∈ random_numbers.txt ):"
+    putStrLn "Gaussian example ( count(e<50), count(e>=50) | e random_numbers.txt ):"
     ggg P.>>= \e -> (unPM e) P.>>= \e-> print e
 
