@@ -16,6 +16,7 @@
    ,TypeFamilyDependencies
    ,UndecidableInstances
    ,EmptyCase
+   ,BlockArguments
    #-}
 
 module Privacy where
@@ -113,12 +114,13 @@ gaussL :: forall eps delta s.
   => L2List (SDouble Diff) s
   -> PM (TruncatePriv eps delta s)  [Double]
 gaussL (SList_UNSAFE xs) =
-    let sens = sqrt (fromIntegral (length xs)) * fromIntegral (natVal (Proxy :: Proxy (MaxSens s)))
+    let sens2 = fromIntegral (length xs) * fromIntegral (natVal (Proxy :: Proxy (MaxSens s))) * fromIntegral (natVal (Proxy :: Proxy (MaxSens s)))
         dlta = fromRational $ ratVal (Proxy :: Proxy delta)
         e = fromRational $ ratVal (Proxy :: Proxy eps)
-        sigma = sqrt (2 * sens * sens * log (1.25 / dlta) / (e * e))
+        sigma = sqrt (2 * sens2 * log (1.25 / dlta) / (e * e))
     in
     let addNoise x = do
+            print $ fromIntegral (natVal (Proxy :: Proxy (MaxSens s)))
             gen <- createSystemRandom
             let distr = Gaussian.normalDistr 0 sigma
             noise <- genContVar distr gen

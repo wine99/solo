@@ -21,7 +21,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use >=>" #-}
 
-module Main where
+module GaussianL where
 
 import Prelude hiding (return,(>>=), sum)
 import qualified Prelude as P
@@ -44,26 +44,12 @@ import qualified Data.Map.Strict as Map
 import qualified GHC.List as List
 import Sensitivity (SList(SList_UNSAFE), SDouble (D_UNSAFE))
 
-import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
+-- Our dataset is a list of random numbers between 0 and 100
+-- ggg = sReadFileL "random_numbers.txt" P.>>= \db ->
+    -- fmap ( \e-> print (unSDouble e) ) (unSList db)
+ggg = sReadFileL "gender.txt" P.>>= \db ->
+    sequence_ (map (\e-> print (unSDouble e)) (unSList db))
 
-assignBin :: SDouble m s -> Integer
-assignBin sdouble = truncate $ unSDouble sdouble
 
-parted exampleDB =
-  exampleDB P.>>= \exampleDB ->
-  P.return $ part @Integer @L2 assignBin exampleDB
-
-getValue :: forall f e. Maybe (L2List f e) -> SDouble Diff e
-getValue Nothing = D_UNSAFE 0.0
-getValue (Just i) = count i
-
-ggg = let res = parted (sReadFileL "gender.txt") in
-          res P.>>= \pa ->
-              -- emptySList @L2 @(SDouble Diff)
-              let l2list = getValue(  Map.lookup 0 (unPartition pa)) `scons` ( getValue(  Map.lookup 1 (unPartition pa)) `scons` emptySList ) in
-                 P.return $ gaussL @('Pos 1 ':% 1) @('Pos 1 ':% 1000) l2list
-
-main = do
-    ggg P.>>= \e -> (unPM e) P.>>= \e->print e
+main = ggg
 

@@ -16,4 +16,4 @@ dependencies:
 
 executable:
   source-dirs: src
-  main: Main.hs
+  main: GaussianL.hs

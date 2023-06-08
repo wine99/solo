@@ -11,8 +11,9 @@ license-file:   LICENSE
 build-type:     Simple
 
 executable solo
-  main-is: Main.hs
+  main-is: GaussianL.hs
   other-modules:
+      Main
       Primitives
       Privacy
       PrivacySafe
