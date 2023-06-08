@@ -15,6 +15,8 @@
    ,TypeSynonymInstances
    ,TypeFamilyDependencies
    ,UndecidableInstances
+   ,RebindableSyntax
+   ,EmptyCase
    #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use >=>" #-}
@@ -41,26 +43,244 @@ import Text.Read (readMaybe)
 import qualified Data.Map.Strict as Map
 import qualified GHC.List as List
 import Sensitivity (SList(SList_UNSAFE), SDouble (D_UNSAFE))
+import qualified GaussianL as GaussExample
 
-import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
+--------------------------------------------------
+-- CDF Example
+--------------------------------------------------
 
-assignBin :: SDouble m s -> Integer
-assignBin sdouble = if (unSDouble sdouble) > 50.0 then 1 else 0
+-- Our dataset is a list of random numbers between 0 and 100
+exampleDB :: IO (L1List (SDouble Disc) '[ '("random_numbers.txt", NatSens 1 ) ])
+exampleDB = sReadFileL "random_numbers.txt"
 
-parted exampleDB =
+-------- Computing CDF using Sequential composition --------
+
+-- The sequential CDF query
+cdf :: forall ε iterations s. (TL.KnownNat (MaxSens s), TL.KnownNat iterations, TL.KnownRat ε) =>
+  [Double] -> L1List (SDouble Disc) s -> PM (ScalePriv (TruncatePriv ε Zero s) iterations) [Double]
+cdf buckets db =
+  seqloop @iterations (\i results -> do
+                        let c = count $ sfilter ((<) $ buckets !! i) db
+                        r <- laplace @ε c
+                        return (r : results)) []
+
+-- Running the query on our dataset with privacy budget ε = 1
+sequentialCDF_PM =
   exampleDB P.>>= \exampleDB ->
-  P.return $ part @Integer @L2 assignBin exampleDB
+  P.return $ cdf @(RLit 1 100) @100 [0..100] exampleDB
 
-getValue :: forall f e. Maybe (L2List f e) -> SDouble Diff e
-getValue Nothing = D_UNSAFE 0.0
-getValue (Just i) = count i
+-- Extracting the result from the privacy monad and rounding (post-processing)
+sequentialCDF =
+  sequentialCDF_PM P.>>= \cdfResult ->
+  unPM cdfResult P.>>= \cdfResult ->
+  P.return $ map round cdfResult
 
-ggg = let res = parted (sReadFileL "random_numbers.txt") in
-          res P.>>= \pa ->
-              let l2list = SList_UNSAFE [ getValue(  Map.lookup 0 (unPartition pa)), getValue(  Map.lookup 1 (unPartition pa))] in
-                 P.return $ gaussL @('Pos 1 ':% 1) @('Pos 1 ':% 10000) l2list
+-------- Computing CDF using Parallel composition --------
 
+-- Function that designates in which bin a number from our dataset falls into
+-- Here, we use 100 bins, so we can simply truncate the double
+assignBin :: SDouble m s -> Integer
+assignBin sdouble = truncate $ unSDouble sdouble
+
+-- Create a partition "parted" using assignBin
+parted =
+  exampleDB P.>>= \exampleDB ->
+  P.return $ part assignBin exampleDB
+
+-- A 1-differentially private query that counts the number of elements in xs.
+noisyCount xs = do
+  let c = count xs
+  laplace @(RNat 1) c
+
+-- Compute the noisy histogram by applying noisyCount on each part of parted
+noisyHistogram_PM :: IO
+  (PM
+     '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)]
+     (Map.Map Integer Double))
+noisyHistogram_PM =
+  parted P.>>= \parted ->
+  let histogramPM = parallel noisyCount parted in
+    P.return histogramPM
+
+-- Here Haskell can infer the type of `histogramPM` is
+--  PM '[ '("random_numbers.txt", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map Integer Double)
+-- So the histogram query satisfies 1-differential privacy
+
+-- We now do post-processing on the noisy histogram to get out a cdf
+-- The counts are also rounded off
+parallelCDF =
+  noisyHistogram_PM P.>>= \histogramPM ->
+  unPM histogramPM P.>>= \histogram ->
+  let kvs = Map.toAscList histogram
+      cdf = [List.sum (map snd (take i kvs)) | i <- [1 .. length kvs]]
+      rounded_cdf = map round cdf
+  in
+    P.return rounded_cdf
+
+
+--------------------------------------------------
+-- Gradient descent example
+--------------------------------------------------
+
+
+type Weights = [Double]
+type Example = [Double]
+type SExample = L2List (SDouble Disc)
+type SDataset senv = L1List SExample senv
+gradient :: Weights -> Example -> Weights
+gradient = undefined
+
+-- bound `b` is the maximum L2-norm the gradiant vector can have
+clippedGrad :: forall b senv cm m. (TL.KnownNat b) =>
+  Weights -> SExample senv -> L2List (SDouble Diff) (TruncateSens b senv)
+clippedGrad weights x =
+  let g = infsensL (gradient weights) x         -- apply the infinitely-sensitive function
+  in cong (truncate_n_inf @b @senv) $ clipL2 @b  g  -- clip the results and return
+
+-- this is wrong, hard to implement... https://programming-dp.com/ch12.html#gradient-descent-with-differential-privacy
+-- want kε+1,δ not k(ε+1),δ
+gradientDescent :: forall ε δ iterations b s.
+  (TL.KnownRat ε, TL.KnownRat δ, TL.KnownNat iterations, TL.KnownNat b, TL.KnownNat (MaxSens s)) =>
+  Weights -> SDataset s -> PM (ScalePriv (TruncatePriv ε δ s ++++ TruncatePriv (RNat 1) Zero s) iterations) Weights
+gradientDescent weights xs =
+  let noisyC = noisyCount xs
+      gradStep i weights =
+        let clippedGrads = stmap @b (clippedGrad @b weights) xs
+            gradSum = sfoldr1s sListSum1s (sConstL @'[] []) clippedGrads
+            noisyGradSum = gaussLN @ε @δ @b @s gradSum
+            noisyGradAvg = listDiv noisyGradSum noisyC
+        in noisyGradAvg
+  in seqloop @iterations gradStep weights
+
+{- AdvComp not supported
+
+gradientDescentAdv :: forall ε δ iterations s.
+  (TL.KnownNat iterations) =>
+  Weights -> SDataset s -> PM (AdvComp iterations δ (TruncatePriv ε δ s)) Weights
+gradientDescentAdv weights xs =
+  let gradStep i weights =
+        let clippedGrads = stmap @1 (clippedGrad weights) xs
+            gradSum = sfoldr1s sListSum1s (sConstL @'[] []) clippedGrads
+        in gaussLN @ε @δ @1 @s gradSum
+  in advloop @iterations @δ gradStep weights
+
+-}
+
+{- This could compile, but the default reduction stack for equality checking of the natural numbers is exceeded
+
+-- SExample of passing in specific numbers to reduce the expression down to literals
+-- Satisfies (1, 1e-5)-DP
+gdMain :: PM '[ '("dataset.dat", RNat 1, RLit 1 100000) ] Weights
+gdMain =
+  let weights = replicate 10 0
+      dataset = sReadFile @"dataset.dat"
+  in gradientDescent @(RLit 1 100) @(RLit 1 10000000) @100 @5 weights dataset
+
+-}
+
+--------------------------------------------------
+-- MWEM
+--------------------------------------------------
+
+type RangeQuery = (Double, Double)
+evaluateDB :: RangeQuery -> L1List (SDouble Disc) s -> SDouble Diff s
+evaluateDB (l, u) db = count $ sfilter (\x -> l < x && u > x) db
+evaluateSynth :: RangeQuery -> [Double] -> Double
+evaluateSynth (l, u) syn_rep = fromIntegral $ length $ filter (\x -> l < x && u > x) syn_rep
+
+scoreFn :: forall s. [Double] -> RangeQuery -> L1List (SDouble Disc) s -> SDouble Diff s
+scoreFn syn_rep q db =
+  let true_answer = evaluateDB q db
+      syn_answer  = evaluateSynth q syn_rep
+  in sabs $ sConstD @'[] syn_answer <-> true_answer
+
+mwem :: forall ε iterations s.
+  (TL.KnownNat (MaxSens s), TL.KnownNat iterations, TL.KnownRat ε) =>
+  [Double] -> [RangeQuery] -> L1List (SDouble Disc) s
+  -> PM (ScalePriv ((TruncatePriv ε Zero s) ++++ (TruncatePriv ε Zero s)) iterations) [Double]
+mwem syn_rep qs db =
+  let mwemStep _ syn_rep = do
+        selected_q <- expMech @ε (scoreFn syn_rep) qs db
+        measurement <- laplace @ε (evaluateDB selected_q db)
+        return $ multiplicativeWeights syn_rep selected_q measurement
+  in seqloop @iterations mwemStep syn_rep
+
+multiplicativeWeights :: [Double] -> (Double, Double) -> Double -> [Double]
+multiplicativeWeights = undefined
+
+
+--------------------------------------------------
+-- Most Frequently occurring rounded number from Laplace Samples
+--------------------------------------------------
+
+-- Generating the Laplace samples
+samples :: IO (SList m (SDouble m1) '[ '("", NatSens 1 ) ])
+samples =
+      let sampleLaplace =
+            createSystemRandom P.>>= \gen ->
+            genContVar (Lap.laplace 5 10) gen P.>>= \r ->
+            P.return r
+          laplaceSamples = sequence [sampleLaplace | _ <- [1..1000]]
+      in
+          laplaceSamples P.>>= \x -> P.return $ SList_UNSAFE ([D_UNSAFE d | d <- x])
+
+
+-------- Computing Most Frequent using Exponential composition --------
+options :: [Integer]
+options = [0 .. 10]
+
+filterCount :: Integer -> L1List (SDouble m) s -> SDouble 'Diff s
+filterCount option dataset = count $ sfilter (\x -> (round x) == option) dataset
+
+exponentialMF_PM :: IO (PM '[ '("", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] Integer)
+exponentialMF_PM = samples P.>>= \s -> P.return $ expMech @(RNat 1) filterCount options s
+
+exponentialMF =
+  exponentialMF_PM P.>>= \result_PM ->
+  unPM result_PM P.>>= \result ->
+  P.return result
+
+
+-------- Computing Most Frequent using Parallel composition --------
+assignBinMF sdouble = round $ unSDouble sdouble
+
+partedMF =
+  samples P.>>= \samples ->
+  P.return $ part assignBinMF samples
+
+-- Compute noisy histogram
+histogramMF_PM :: IO
+  (PM '[ '("", 'Pos 1 ':% 1, 'Pos 0 ':% 1)] (Map.Map Integer Double))
+histogramMF_PM =
+  partedMF P.>>= \mf_p ->
+  let histogramPM = parallel noisyCount mf_p in
+    P.return histogramPM
+
+-- Post processing: find most frequently occurring number
+parallelMF =
+  histogramMF_PM P.>>= \hg_PM ->
+  unPM hg_PM P.>>= \hg ->
+  let
+    kvs = Map.toAscList hg
+    mf = foldl (\a -> \b ->
+      case (snd a) > (snd b) of
+        True -> a
+        False -> b) (head kvs) (tail kvs)
+  in
+    P.return $ fst mf
+
+
+--------------------------------------------------
+-- Main
+--------------------------------------------------
 main = do
-    ggg P.>>= \e -> (unPM e) P.>>= \e->print e
-
+  putStrLn "------- Running all demos -------"
+  putStrLn "CDF - Sequential:"
+  sequentialCDF P.>>= \cdfResult -> print cdfResult
+  putStrLn "CDF - Parallel:"
+  parallelCDF P.>>= \cdfResult -> print cdfResult
+  putStrLn "Most frequent rounded number from Laplace samples - Exponential"
+  exponentialMF P.>>= \mfResult -> print mfResult
+  putStrLn "Most frequent rounded number from Laplace samples - Parallel"
+  parallelMF P.>>= \mfResult -> print mfResult
+  GaussExample.gExample
