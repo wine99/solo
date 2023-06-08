@@ -58,7 +58,9 @@ getValue (Just i) = count i
 
 ggg = let res = parted (sReadFileL "random_numbers.txt") in
           res P.>>= \pa ->
-              let l2list = SList_UNSAFE [ getValue(  Map.lookup 0 (unPartition pa)), getValue(  Map.lookup 1 (unPartition pa))] in
+              -- this is correct
+              -- let l2list = SList_UNSAFE [ getValue(  Map.lookup 0 (unPartition pa)), getValue(  Map.lookup 1 (unPartition pa))] in
+              let l2list =  getValue(  Map.lookup 0 (unPartition pa)) `scons` (getValue(  Map.lookup 1 (unPartition pa)) `scons` emptySList) in
                  P.return $ gaussL @('Pos 1 ':% 1) @('Pos 1 ':% 10000) l2list
 
 gExample = do
