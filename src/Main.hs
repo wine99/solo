@@ -15,8 +15,6 @@
    ,TypeSynonymInstances
    ,TypeFamilyDependencies
    ,UndecidableInstances
-   ,RebindableSyntax
-   ,EmptyCase
    #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use >=>" #-}
@@ -48,7 +46,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 
 assignBin :: SDouble m s -> Integer
-assignBin sdouble = truncate $ unSDouble sdouble
+assignBin sdouble = if (unSDouble sdouble) > 50.0 then 1 else 0
 
 parted exampleDB =
   exampleDB P.>>= \exampleDB ->
@@ -58,11 +56,10 @@ getValue :: forall f e. Maybe (L2List f e) -> SDouble Diff e
 getValue Nothing = D_UNSAFE 0.0
 getValue (Just i) = count i
 
-ggg = let res = parted (sReadFileL "gender.txt") in
+ggg = let res = parted (sReadFileL "random_numbers.txt") in
           res P.>>= \pa ->
-              -- emptySList @L2 @(SDouble Diff)
-              let l2list = getValue(  Map.lookup 0 (unPartition pa)) `scons` ( getValue(  Map.lookup 1 (unPartition pa)) `scons` emptySList ) in
-                 P.return $ gaussL @('Pos 1 ':% 1) @('Pos 1 ':% 1000) l2list
+              let l2list = SList_UNSAFE [ getValue(  Map.lookup 0 (unPartition pa)), getValue(  Map.lookup 1 (unPartition pa))] in
+                 P.return $ gaussL @('Pos 1 ':% 1) @('Pos 1 ':% 10000) l2list
 
 main = do
     ggg P.>>= \e -> (unPM e) P.>>= \e->print e

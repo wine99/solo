@@ -120,7 +120,7 @@ gaussL (SList_UNSAFE xs) =
         sigma = sqrt (2 * sens2 * log (1.25 / dlta) / (e * e))
     in
     let addNoise x = do
-            print $ fromIntegral (natVal (Proxy :: Proxy (MaxSens s)))
+            -- print $ fromIntegral (natVal (Proxy :: Proxy (MaxSens s)))
             gen <- createSystemRandom
             let distr = Gaussian.normalDistr 0 sigma
             noise <- genContVar distr gen

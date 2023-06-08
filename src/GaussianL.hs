@@ -15,8 +15,6 @@
    ,TypeSynonymInstances
    ,TypeFamilyDependencies
    ,UndecidableInstances
-   ,RebindableSyntax
-   ,EmptyCase
    #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use >=>" #-}
@@ -44,12 +42,25 @@ import qualified Data.Map.Strict as Map
 import qualified GHC.List as List
 import Sensitivity (SList(SList_UNSAFE), SDouble (D_UNSAFE))
 
--- Our dataset is a list of random numbers between 0 and 100
--- ggg = sReadFileL "random_numbers.txt" P.>>= \db ->
-    -- fmap ( \e-> print (unSDouble e) ) (unSList db)
-ggg = sReadFileL "gender.txt" P.>>= \db ->
-    sequence_ (map (\e-> print (unSDouble e)) (unSList db))
+import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 
+assignBin :: SDouble m s -> Integer
+assignBin sdouble = if (unSDouble sdouble) > 50.0 then 1 else 0
 
-main = ggg
+parted exampleDB =
+  exampleDB P.>>= \exampleDB ->
+  P.return $ part @Integer @L2 assignBin exampleDB
+
+getValue :: forall f e. Maybe (L2List f e) -> SDouble Diff e
+getValue Nothing = D_UNSAFE 0.0
+getValue (Just i) = count i
+
+ggg = let res = parted (sReadFileL "random_numbers.txt") in
+          res P.>>= \pa ->
+              let l2list = getValue(  Map.lookup 0 (unPartition pa)) `scons` (getValue(  Map.lookup 1 (unPartition pa)) `scons` emptySList @L2) in
+                 P.return $ gaussL @('Pos 1 ':% 1) @('Pos 1 ':% 10000) l2list
+
+main = do
+    ggg P.>>= \e -> (unPM e) P.>>= \e->print e
 
